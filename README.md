@@ -1,4 +1,4 @@
-[![Discord](https://img.shields.io/discord/1439307550372663419?color=7289da&logo=discord&logoColor=white&style=for-the-badge)](https://discord.gg/unPZxXAtfb)
+[![Discord](https://img.shields.io/badge/Discord-Join%20Server-7289da?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/unPZxXAtfb)
 
 # 🎣 GPO Autofish - GUIDE
 

@@ -32,7 +32,7 @@ The original closed-source macro is sketchy and often flagged by antivirus softw
 
 1. **Install pip** (Python's package manager - downloads code libraries)
 
-   Download Python from https://python.org and check "Add to PATH" during installation
+   Download Python from https://python.org and make sure to check/enable "Add to PATH" during installation
 
 2. **Clone or download this repository**
 

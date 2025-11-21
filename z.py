@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, filedialog, simpledialog
 import threading
 import keyboard
 from pynput import keyboard as pynput_keyboard
@@ -11,6 +11,15 @@ import mss
 import numpy as np
 import win32api
 import win32con
+import json
+import os
+from datetime import datetime
+try:
+    import pystray
+    from PIL import Image, ImageDraw
+    TRAY_AVAILABLE = True
+except ImportError:
+    TRAY_AVAILABLE = False
 
 class ToolTip:
     """Simple tooltip class for hover explanations"""
@@ -42,10 +51,65 @@ class ToolTip:
             self.tooltip_window.destroy()
             self.tooltip_window = None
 
+class CollapsibleFrame:
+    """Modern collapsible frame widget with sleek styling"""
+    def __init__(self, parent, title, row, columnspan=4):
+        self.parent = parent
+        self.title = title
+        self.row = row
+        self.columnspan = columnspan
+        self.is_expanded = True
+        
+        # Main container with modern styling
+        self.container = ttk.Frame(parent)
+        self.container.grid(row=row, column=0, columnspan=columnspan, sticky='ew', pady=(8, 0), padx=10)
+        
+        # Header frame with modern card-like appearance
+        self.header_frame = ttk.Frame(self.container)
+        self.header_frame.pack(fill='x', pady=(0, 2))
+        self.header_frame.columnconfigure(0, weight=1)  # Make title expand
+        
+        # Title label with modern typography (left side)
+        self.title_label = ttk.Label(self.header_frame, text=title, 
+                                   font=('Segoe UI', 11, 'bold'))
+        self.title_label.grid(row=0, column=0, sticky='w', padx=(10, 0), pady=5)
+        
+        # Modern toggle button on the right side
+        self.toggle_btn = ttk.Button(self.header_frame, text='−', width=3, 
+                                   command=self.toggle, style='TButton')
+        self.toggle_btn.grid(row=0, column=1, sticky='e', padx=(0, 10), pady=2)
+        
+        # Separator line for visual separation
+        separator = ttk.Frame(self.container, height=1)
+        separator.pack(fill='x', pady=(0, 8))
+        
+        # Content frame with padding
+        self.content_frame = ttk.Frame(self.container)
+        self.content_frame.pack(fill='both', expand=True, padx=15, pady=(0, 10))
+        
+        # Configure grid weights for responsive design
+        parent.grid_rowconfigure(row, weight=0)
+        self.container.columnconfigure(0, weight=1)
+        
+    def toggle(self):
+        """Toggle the visibility of the content frame with smooth animation"""
+        if self.is_expanded:
+            self.content_frame.pack_forget()
+            self.toggle_btn.config(text='+')
+            self.is_expanded = False
+        else:
+            self.content_frame.pack(fill='both', expand=True, padx=15, pady=(0, 10))
+            self.toggle_btn.config(text='−')
+            self.is_expanded = True
+    
+    def get_content_frame(self):
+        """Return the content frame for adding widgets"""
+        return self.content_frame
+
 class HotkeyGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title('GPO Autofish - by asphalt_cake | Public Release by Ariel')
+        self.root.title('GPO Autofish')
         self.root.attributes('-topmost', True)
         try:
             ctypes.windll.shcore.SetProcessDpiAwareness(1)
@@ -75,10 +139,27 @@ class HotkeyGUI:
         self.purchase_delay_after_key = 2.0
         self.purchase_click_delay = 1.0
         self.purchase_after_type_delay = 1.0
+        self.fish_count = 0  # Track successful fishing attempts
+        
+        # UI/UX improvements
+        self.dark_theme = True  # Default to dark theme
+        self.tray_icon = None
+        self.collapsible_sections = {}
+        
+        # Preset management
+        self.presets_dir = "presets"
+        if not os.path.exists(self.presets_dir):
+            os.makedirs(self.presets_dir)
+        
         self.create_widgets()
+        self.apply_theme()
         self.register_hotkeys()
         self.root.update_idletasks()
         self.root.minsize(self.root.winfo_width(), self.root.winfo_height())
+        
+        # Setup system tray if available
+        if TRAY_AVAILABLE:
+            self.setup_system_tray()
 
     def get_dpi_scale(self):
         """Get the DPI scaling factor for the current display"""  # inserted
@@ -90,157 +171,92 @@ class HotkeyGUI:
             return 1.0
 
     def create_widgets(self):
-        self.root.configure(bg='#191919')
-        main_frame = ttk.Frame(self.root, padding='20')
-        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        main_frame.columnconfigure(0, weight=1)
-        main_frame.columnconfigure(1, weight=0)
-        main_frame.columnconfigure(2, weight=0)
-        main_frame.columnconfigure(3, weight=0)  # For help buttons
-        title = ttk.Label(main_frame, text='🎣 GPO Autofish', font=('Arial', 16, 'bold'))
-        title.grid(row=0, column=0, columnspan=3, pady=(0, 5))
-        credits = ttk.Label(main_frame, text='by asphalt_cake | Public Release by Ariel', font=('Arial', 8), foreground='#888888')
-        credits.grid(row=1, column=0, columnspan=3, pady=(0, 10))
-        self.loop_status = ttk.Label(main_frame, text='Main Loop: OFF', foreground='#55aaff')
-        self.loop_status.grid(row=2, column=0, columnspan=3, pady=5)
-        self.overlay_status = ttk.Label(main_frame, text='Overlay: OFF', foreground='#55aaff')
-        self.overlay_status.grid(row=3, column=0, columnspan=3, pady=5)
-        ttk.Separator(main_frame, orient='horizontal').grid(row=4, column=0, columnspan=3, sticky='ew', pady=20)
-        ttk.Label(main_frame, text='Auto Purchase Settings:', font=('Arial', 12, 'bold')).grid(row=5, column=0, columnspan=4, pady=(0, 10))
+        # Configure root window (will be updated by apply_theme)
+        pass
         
-        # Auto Purchase Active
-        ttk.Label(main_frame, text='Active:').grid(row=6, column=0, sticky=tk.W, pady=5)
-        self.auto_purchase_var = tk.BooleanVar(value=True)
-        auto_check = ttk.Checkbutton(main_frame, variable=self.auto_purchase_var, text='Enabled')
-        auto_check.grid(row=6, column=1, pady=5, sticky=tk.W)
-        help_btn = ttk.Button(main_frame, text='?', width=3)
-        help_btn.grid(row=6, column=3, padx=5, pady=5)
-        ToolTip(help_btn, "Automatically buy bait after catching fish. Requires setting Points 1-4.")
+        # Main container with modern padding
+        self.main_frame = ttk.Frame(self.root, padding='25')
+        self.main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        self.main_frame.columnconfigure(0, weight=1)
         
-        # Purchase Amount
-        ttk.Label(main_frame, text='Amount:').grid(row=7, column=0, sticky=tk.W, pady=5)
-        self.amount_var = tk.IntVar(value=10)
-        amount_spinbox = ttk.Spinbox(main_frame, from_=0, to=1000000, increment=1, textvariable=self.amount_var, width=10)
-        amount_spinbox.grid(row=7, column=1, pady=5, sticky=tk.W)
-        help_btn = ttk.Button(main_frame, text='?', width=3)
-        help_btn.grid(row=7, column=3, padx=5, pady=5)
-        ToolTip(help_btn, "How much bait to buy each time (e.g., 10 = buy 10 bait)")
-        self.amount_var.trace_add('write', lambda *args: setattr(self, 'auto_purchase_amount', self.amount_var.get()))
-        self.auto_purchase_amount = self.amount_var.get()
+        current_row = 0
         
-        # Loops per Purchase
-        ttk.Label(main_frame, text='Loops per Purchase:').grid(row=8, column=0, sticky=tk.W, pady=5)
-        self.loops_var = tk.IntVar(value=10)
-        loops_spinbox = ttk.Spinbox(main_frame, from_=1, to=1000000, increment=1, textvariable=self.loops_var, width=10)
-        loops_spinbox.grid(row=8, column=1, pady=5, sticky=tk.W)
-        help_btn = ttk.Button(main_frame, text='?', width=3)
-        help_btn.grid(row=8, column=3, padx=5, pady=5)
-        ToolTip(help_btn, "Buy bait every X fish caught (e.g., 10 = buy bait after every 10 fish)")
-        self.loops_var.trace_add('write', lambda *args: setattr(self, 'loops_per_purchase', self.loops_var.get()))
-        self.loops_per_purchase = self.loops_var.get()
-        # Point buttons for auto-purchase
-        self.point_buttons = {}
-        self.point_coords = {1: None, 2: None, 3: None, 4: None}
+        # Modern header section
+        header_frame = ttk.Frame(self.main_frame)
+        header_frame.grid(row=current_row, column=0, sticky='ew', pady=(0, 20))
+        header_frame.columnconfigure(0, weight=1)
         
-        ttk.Label(main_frame, text='Point 1:').grid(row=9, column=0, sticky=tk.W, pady=5)
-        self.point_buttons[1] = ttk.Button(main_frame, text='Point 1', command=lambda: self.capture_mouse_click(1))
-        self.point_buttons[1].grid(row=9, column=1, pady=5, sticky=tk.W)
-        help_btn = ttk.Button(main_frame, text='?', width=3)
-        help_btn.grid(row=9, column=3, padx=5, pady=5)
-        ToolTip(help_btn, "Click to set: buy button/Yes location")
+        # App title with modern styling
+        title = ttk.Label(header_frame, text='🎣 GPO Autofish', style='Title.TLabel')
+        title.grid(row=0, column=0, pady=(0, 5))
         
-        ttk.Label(main_frame, text='Point 2:').grid(row=10, column=0, sticky=tk.W, pady=5)
-        self.point_buttons[2] = ttk.Button(main_frame, text='Point 2', command=lambda: self.capture_mouse_click(2))
-        self.point_buttons[2].grid(row=10, column=1, pady=5, sticky=tk.W)
-        help_btn = ttk.Button(main_frame, text='?', width=3)
-        help_btn.grid(row=10, column=3, padx=5, pady=5)
-        ToolTip(help_btn, "Click to set: Amount input field location")
+        # Subtitle
+        credits = ttk.Label(header_frame, text='by asphalt_cake | Reworked/Published by Ariel', 
+                           style='Subtitle.TLabel')
+        credits.grid(row=1, column=0, pady=(0, 15))
         
-        ttk.Label(main_frame, text='Point 3:').grid(row=11, column=0, sticky=tk.W, pady=5)
-        self.point_buttons[3] = ttk.Button(main_frame, text='Point 3', command=lambda: self.capture_mouse_click(3))
-        self.point_buttons[3].grid(row=11, column=1, pady=5, sticky=tk.W)
-        help_btn = ttk.Button(main_frame, text='?', width=3)
-        help_btn.grid(row=11, column=3, padx=5, pady=5)
-        ToolTip(help_btn, "Click to set: close button location")
+        # Modern control panel
+        control_panel = ttk.Frame(header_frame)
+        control_panel.grid(row=2, column=0, sticky='ew', pady=(0, 10))
+        control_panel.columnconfigure(1, weight=1)  # Center spacing
         
-        ttk.Label(main_frame, text='Point 4:').grid(row=12, column=0, sticky=tk.W, pady=5)
-        self.point_buttons[4] = ttk.Button(main_frame, text='Point 4', command=lambda: self.capture_mouse_click(4))
-        self.point_buttons[4].grid(row=12, column=1, pady=5, sticky=tk.W)
-        help_btn = ttk.Button(main_frame, text='?', width=3)
-        help_btn.grid(row=12, column=3, padx=5, pady=5)
-        ToolTip(help_btn, "Click to set: Throw Location")
-        ttk.Separator(main_frame, orient='horizontal').grid(row=13, column=0, columnspan=4, sticky='ew', pady=20)
-        ttk.Label(main_frame, text='PD Controller:', font=('Arial', 12, 'bold')).grid(row=14, column=0, columnspan=4, pady=(0, 10))
+        # Left controls
+        left_controls = ttk.Frame(control_panel)
+        left_controls.grid(row=0, column=0, sticky='w')
         
-        ttk.Label(main_frame, text='Kp (Proportional):').grid(row=15, column=0, sticky=tk.W, pady=5)
-        self.kp_var = tk.DoubleVar(value=self.kp)
-        kp_spinbox = ttk.Spinbox(main_frame, from_=0.0, to=2.0, increment=0.1, textvariable=self.kp_var, width=10)
-        kp_spinbox.grid(row=15, column=1, pady=5, sticky=tk.W)
-        help_btn = ttk.Button(main_frame, text='?', width=3)
-        help_btn.grid(row=15, column=3, padx=5, pady=5)
-        ToolTip(help_btn, "How strongly to react to fish position. Higher = more aggressive corrections")
-        self.kp_var.trace_add('write', lambda *args: setattr(self, 'kp', self.kp_var.get()))
+        self.theme_btn = ttk.Button(left_controls, text='☀️ Light Mode', 
+                                   command=self.toggle_theme, style='TButton')
+        self.theme_btn.pack(side=tk.LEFT, padx=(0, 8))
         
-        ttk.Label(main_frame, text='Kd (Derivative):').grid(row=16, column=0, sticky=tk.W, pady=5)
-        self.kd_var = tk.DoubleVar(value=self.kd)
-        kd_spinbox = ttk.Spinbox(main_frame, from_=0.0, to=1.0, increment=0.01, textvariable=self.kd_var, width=10)
-        kd_spinbox.grid(row=16, column=1, pady=5, sticky=tk.W)
-        help_btn = ttk.Button(main_frame, text='?', width=3)
-        help_btn.grid(row=16, column=3, padx=5, pady=5)
-        ToolTip(help_btn, "Smooths movement to prevent overshooting. Higher = smoother but slower")
-        self.kd_var.trace_add('write', lambda *args: setattr(self, 'kd', self.kd_var.get()))
-        ttk.Separator(main_frame, orient='horizontal').grid(row=17, column=0, columnspan=4, sticky='ew', pady=20)
-        ttk.Label(main_frame, text='Timing Settings:', font=('Arial', 12, 'bold')).grid(row=18, column=0, columnspan=4, pady=(0, 10))
+        # Right controls
+        right_controls = ttk.Frame(control_panel)
+        right_controls.grid(row=0, column=2, sticky='e')
         
-        ttk.Label(main_frame, text='Scan Timeout (s):').grid(row=19, column=0, sticky=tk.W, pady=5)
-        self.timeout_var = tk.DoubleVar(value=self.scan_timeout)
-        timeout_spinbox = ttk.Spinbox(main_frame, from_=1.0, to=60.0, increment=1.0, textvariable=self.timeout_var, width=10)
-        timeout_spinbox.grid(row=19, column=1, pady=5, sticky=tk.W)
-        help_btn = ttk.Button(main_frame, text='?', width=3)
-        help_btn.grid(row=19, column=3, padx=5, pady=5)
-        ToolTip(help_btn, "How long to wait for fish before recasting line (seconds)")
-        self.timeout_var.trace_add('write', lambda *args: setattr(self, 'scan_timeout', self.timeout_var.get()))
+        ttk.Button(right_controls, text='💾 Save', command=self.save_preset, 
+                  style='TButton').pack(side=tk.LEFT, padx=(0, 8))
+        ttk.Button(right_controls, text='📁 Load', command=self.load_preset,
+                  style='TButton').pack(side=tk.LEFT, padx=(0, 8))
         
-        ttk.Label(main_frame, text='Wait After Loss (s):').grid(row=20, column=0, sticky=tk.W, pady=5)
-        self.wait_var = tk.DoubleVar(value=self.wait_after_loss)
-        wait_spinbox = ttk.Spinbox(main_frame, from_=0.0, to=10.0, increment=0.1, textvariable=self.wait_var, width=10)
-        wait_spinbox.grid(row=20, column=1, pady=5, sticky=tk.W)
-        help_btn = ttk.Button(main_frame, text='?', width=3)
-        help_btn.grid(row=20, column=3, padx=5, pady=5)
-        ToolTip(help_btn, "Pause time after losing a fish before recasting (seconds)")
-        self.wait_var.trace_add('write', lambda *args: setattr(self, 'wait_after_loss', self.wait_var.get()))
-        ttk.Separator(main_frame, orient='horizontal').grid(row=21, column=0, columnspan=4, sticky='ew', pady=20)
-        ttk.Label(main_frame, text='Hotkey Bindings:', font=('Arial', 12, 'bold')).grid(row=22, column=0, columnspan=4, pady=(0, 10))
+        if TRAY_AVAILABLE:
+            ttk.Button(right_controls, text='📌 Tray', command=self.minimize_to_tray,
+                      style='TButton').pack(side=tk.LEFT)
         
-        ttk.Label(main_frame, text='Toggle Main Loop:').grid(row=23, column=0, sticky=tk.W, pady=5)
-        self.loop_key_label = ttk.Label(main_frame, text=self.hotkeys['toggle_loop'].upper(), relief=tk.RIDGE, padding=5, width=10)
-        self.loop_key_label.grid(row=23, column=1, pady=5)
-        self.loop_rebind_btn = ttk.Button(main_frame, text='Rebind', command=lambda: self.start_rebind('toggle_loop'))
-        self.loop_rebind_btn.grid(row=23, column=2, padx=5, pady=5)
-        help_btn = ttk.Button(main_frame, text='?', width=3)
-        help_btn.grid(row=23, column=3, padx=5, pady=5)
-        ToolTip(help_btn, "Start/stop the fishing bot")
+        current_row += 1
         
-        ttk.Label(main_frame, text='Toggle Overlay:').grid(row=24, column=0, sticky=tk.W, pady=5)
-        self.overlay_key_label = ttk.Label(main_frame, text=self.hotkeys['toggle_overlay'].upper(), relief=tk.RIDGE, padding=5, width=10)
-        self.overlay_key_label.grid(row=24, column=1, pady=5)
-        self.overlay_rebind_btn = ttk.Button(main_frame, text='Rebind', command=lambda: self.start_rebind('toggle_overlay'))
-        self.overlay_rebind_btn.grid(row=24, column=2, padx=5, pady=5)
-        help_btn = ttk.Button(main_frame, text='?', width=3)
-        help_btn.grid(row=24, column=3, padx=5, pady=5)
-        ToolTip(help_btn, "Show/hide blue detection area overlay")
+        # Modern status dashboard
+        status_frame = ttk.Frame(self.main_frame)
+        status_frame.grid(row=current_row, column=0, sticky='ew', pady=(0, 25))
+        status_frame.columnconfigure((0, 1, 2), weight=1)
         
-        ttk.Label(main_frame, text='Exit:').grid(row=25, column=0, sticky=tk.W, pady=5)
-        self.exit_key_label = ttk.Label(main_frame, text=self.hotkeys['exit'].upper(), relief=tk.RIDGE, padding=5, width=10)
-        self.exit_key_label.grid(row=25, column=1, pady=5)
-        self.exit_rebind_btn = ttk.Button(main_frame, text='Rebind', command=lambda: self.start_rebind('exit'))
-        self.exit_rebind_btn.grid(row=25, column=2, padx=5, pady=5)
-        help_btn = ttk.Button(main_frame, text='?', width=3)
-        help_btn.grid(row=25, column=3, padx=5, pady=5)
-        ToolTip(help_btn, "Close the application completely")
+        # Status cards
+        self.loop_status = ttk.Label(status_frame, text='● Main Loop: OFF', style='StatusOff.TLabel')
+        self.loop_status.grid(row=0, column=0, padx=10, pady=8)
         
-        self.status_msg = ttk.Label(main_frame, text='', foreground='blue')
-        self.status_msg.grid(row=26, column=0, columnspan=4, pady=(20, 0))
+        self.overlay_status = ttk.Label(status_frame, text='● Overlay: OFF', style='StatusOff.TLabel')
+        self.overlay_status.grid(row=0, column=1, padx=10, pady=8)
+        
+        self.fish_counter_label = ttk.Label(status_frame, text='🐟 Fish: 0', style='Counter.TLabel')
+        self.fish_counter_label.grid(row=0, column=2, padx=10, pady=8)
+        
+        current_row += 1
+        
+        # Create modern collapsible sections
+        self.create_auto_purchase_section(current_row)
+        current_row += 1
+        
+        self.create_pd_controller_section(current_row)
+        current_row += 1
+        
+        self.create_timing_section(current_row)
+        current_row += 1
+        
+        self.create_hotkeys_section(current_row)
+        current_row += 1
+        
+        # Modern status message at bottom
+        self.status_msg = ttk.Label(self.main_frame, text='Ready to fish! 🎣', 
+                                   font=('Segoe UI', 9), foreground='#58a6ff')
+        self.status_msg.grid(row=current_row, column=0, pady=(25, 0))
 
     def capture_mouse_click(self, idx):
         """Start a listener to capture the next mouse click and store its coordinates."""  # inserted
@@ -467,17 +483,35 @@ Sequence (per user spec):
         self.main_loop_active = new_state
         
         if self.main_loop_active:
-            self.loop_status.config(text='Main Loop: ON', foreground='#00ff00')
+            self.loop_status.config(text='● Main Loop: ACTIVE', style='StatusOn.TLabel')
+            self.reset_fish_counter()  # Reset counter when starting
             self.main_loop_thread = threading.Thread(target=self.main_loop, daemon=True)
             self.main_loop_thread.start()
         else:
-            self.loop_status.config(text='Main Loop: OFF', foreground='#55aaff')
+            self.loop_status.config(text='● Main Loop: OFF', style='StatusOff.TLabel')
             # Release mouse button if it's being held when stopping
             if self.is_clicking:
                 win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
                 self.is_clicking = False
             # Reset PD controller state
             self.previous_error = 0
+
+    def increment_fish_counter(self):
+        """Increment fish counter and update display"""
+        self.fish_count += 1
+        try:
+            self.root.after(0, lambda: self.fish_counter_label.config(text=f'🐟 Fish: {self.fish_count}'))
+        except Exception:
+            pass
+        print(f'Fish caught: {self.fish_count}')
+
+    def reset_fish_counter(self):
+        """Reset fish counter when main loop starts"""
+        self.fish_count = 0
+        try:
+            self.root.after(0, lambda: self.fish_counter_label.config(text=f'🐟 Fish: {self.fish_count}'))
+        except Exception:
+            pass
 
     def check_and_purchase(self):
         """Check if we need to auto-purchase and run sequence if needed"""  # inserted
@@ -667,6 +701,9 @@ Sequence (per user spec):
                     section_end = real_y + real_height - 1 - gap_counter
                     dark_sections.append({'start': current_section_start, 'end': section_end, 'middle': (current_section_start + section_end) // 2})
                 if dark_sections and white_top_y is not None:
+                    # If this is the first time detecting this fish, increment counter
+                    if not was_detecting:
+                        self.increment_fish_counter()
                     was_detecting = True
                     last_detection_time = time.time()
                     for section in dark_sections:
@@ -704,11 +741,11 @@ Sequence (per user spec):
         """Toggle the overlay on/off"""
         self.overlay_active = not self.overlay_active
         if self.overlay_active:
-            self.overlay_status.config(text='Overlay: ON', foreground='#00ff00')
+            self.overlay_status.config(text='● Overlay: ACTIVE', style='StatusOn.TLabel')
             self.create_overlay()
             print(f'Overlay activated at: {self.overlay_area}')
         else:
-            self.overlay_status.config(text='Overlay: OFF', foreground='#55aaff')
+            self.overlay_status.config(text='● Overlay: OFF', style='StatusOff.TLabel')
             self.destroy_overlay()
             print(f'Overlay deactivated. Saved area: {self.overlay_area}')
 
@@ -856,6 +893,13 @@ Sequence (per user spec):
         print('Exiting application...')
         self.main_loop_active = False
 
+        # Stop system tray if running
+        if self.tray_icon:
+            try:
+                self.tray_icon.stop()
+            except Exception:
+                pass
+
         # Destroy overlay window if it exists
         if self.overlay_window is not None:
             try:
@@ -878,6 +922,466 @@ Sequence (per user spec):
 
         # Exit the program
         sys.exit(0)
+
+    def create_auto_purchase_section(self, start_row):
+        """Create the auto purchase collapsible section"""
+        section = CollapsibleFrame(self.main_frame, "🛒 Auto Purchase Settings", start_row)
+        self.collapsible_sections['auto_purchase'] = section
+        frame = section.get_content_frame()
+        
+        # Auto Purchase Active
+        row = 0
+        ttk.Label(frame, text='Active:').grid(row=row, column=0, sticky=tk.W, pady=5)
+        self.auto_purchase_var = tk.BooleanVar(value=False)
+        auto_check = ttk.Checkbutton(frame, variable=self.auto_purchase_var, text='Enabled')
+        auto_check.grid(row=row, column=1, pady=5, sticky=tk.W)
+        help_btn = ttk.Button(frame, text='?', width=3)
+        help_btn.grid(row=row, column=3, padx=5, pady=5)
+        ToolTip(help_btn, "Automatically buy bait after catching fish. Requires setting Points 1-4.")
+        row += 1
+        
+        # Purchase Amount
+        ttk.Label(frame, text='Amount:').grid(row=row, column=0, sticky=tk.W, pady=5)
+        self.amount_var = tk.IntVar(value=10)
+        amount_spinbox = ttk.Spinbox(frame, from_=0, to=1000000, increment=1, textvariable=self.amount_var, width=10)
+        amount_spinbox.grid(row=row, column=1, pady=5, sticky=tk.W)
+        help_btn = ttk.Button(frame, text='?', width=3)
+        help_btn.grid(row=row, column=3, padx=5, pady=5)
+        ToolTip(help_btn, "How much bait to buy each time (e.g., 10 = buy 10 bait)")
+        self.amount_var.trace_add('write', lambda *args: setattr(self, 'auto_purchase_amount', self.amount_var.get()))
+        self.auto_purchase_amount = self.amount_var.get()
+        row += 1
+        
+        # Loops per Purchase
+        ttk.Label(frame, text='Loops per Purchase:').grid(row=row, column=0, sticky=tk.W, pady=5)
+        self.loops_var = tk.IntVar(value=10)
+        loops_spinbox = ttk.Spinbox(frame, from_=1, to=1000000, increment=1, textvariable=self.loops_var, width=10)
+        loops_spinbox.grid(row=row, column=1, pady=5, sticky=tk.W)
+        help_btn = ttk.Button(frame, text='?', width=3)
+        help_btn.grid(row=row, column=3, padx=5, pady=5)
+        ToolTip(help_btn, "Buy bait every X fish caught (e.g., 10 = buy bait after every 10 fish)")
+        self.loops_var.trace_add('write', lambda *args: setattr(self, 'loops_per_purchase', self.loops_var.get()))
+        self.loops_per_purchase = self.loops_var.get()
+        row += 1
+        
+        # Point buttons for auto-purchase
+        self.point_buttons = {}
+        self.point_coords = {1: None, 2: None, 3: None, 4: None}
+        
+        for i in range(1, 5):
+            ttk.Label(frame, text=f'Point {i}:').grid(row=row, column=0, sticky=tk.W, pady=5)
+            self.point_buttons[i] = ttk.Button(frame, text=f'Point {i}', command=lambda idx=i: self.capture_mouse_click(idx))
+            self.point_buttons[i].grid(row=row, column=1, pady=5, sticky=tk.W)
+            help_btn = ttk.Button(frame, text='?', width=3)
+            help_btn.grid(row=row, column=3, padx=5, pady=5)
+            
+            tooltips = {
+                1: "Click to set: Shop NPC or buy button location",
+                2: "Click to set: Amount input field location", 
+                3: "Click to set: Confirm/purchase button location",
+                4: "Click to set: Close menu/exit shop location"
+            }
+            ToolTip(help_btn, tooltips[i])
+            row += 1
+
+    def create_pd_controller_section(self, start_row):
+        """Create the PD controller collapsible section"""
+        section = CollapsibleFrame(self.main_frame, "⚙️ PD Controller", start_row)
+        # Start collapsed by default
+        section.is_expanded = False
+        section.content_frame.pack_forget()
+        section.toggle_btn.config(text='+')
+        self.collapsible_sections['pd_controller'] = section
+        frame = section.get_content_frame()
+        
+        row = 0
+        ttk.Label(frame, text='Kp (Proportional):').grid(row=row, column=0, sticky=tk.W, pady=5)
+        self.kp_var = tk.DoubleVar(value=self.kp)
+        kp_spinbox = ttk.Spinbox(frame, from_=0.0, to=2.0, increment=0.1, textvariable=self.kp_var, width=10)
+        kp_spinbox.grid(row=row, column=1, pady=5, sticky=tk.W)
+        help_btn = ttk.Button(frame, text='?', width=3)
+        help_btn.grid(row=row, column=3, padx=5, pady=5)
+        ToolTip(help_btn, "How strongly to react to fish position. Higher = more aggressive corrections")
+        self.kp_var.trace_add('write', lambda *args: setattr(self, 'kp', self.kp_var.get()))
+        row += 1
+        
+        ttk.Label(frame, text='Kd (Derivative):').grid(row=row, column=0, sticky=tk.W, pady=5)
+        self.kd_var = tk.DoubleVar(value=self.kd)
+        kd_spinbox = ttk.Spinbox(frame, from_=0.0, to=1.0, increment=0.01, textvariable=self.kd_var, width=10)
+        kd_spinbox.grid(row=row, column=1, pady=5, sticky=tk.W)
+        help_btn = ttk.Button(frame, text='?', width=3)
+        help_btn.grid(row=row, column=3, padx=5, pady=5)
+        ToolTip(help_btn, "Smooths movement to prevent overshooting. Higher = smoother but slower")
+        self.kd_var.trace_add('write', lambda *args: setattr(self, 'kd', self.kd_var.get()))
+
+    def create_timing_section(self, start_row):
+        """Create the timing settings collapsible section"""
+        section = CollapsibleFrame(self.main_frame, "⏱️ Timing Settings", start_row)
+        # Start collapsed by default
+        section.is_expanded = False
+        section.content_frame.pack_forget()
+        section.toggle_btn.config(text='+')
+        self.collapsible_sections['timing'] = section
+        frame = section.get_content_frame()
+        
+        row = 0
+        ttk.Label(frame, text='Scan Timeout (s):').grid(row=row, column=0, sticky=tk.W, pady=5)
+        self.timeout_var = tk.DoubleVar(value=self.scan_timeout)
+        timeout_spinbox = ttk.Spinbox(frame, from_=1.0, to=60.0, increment=1.0, textvariable=self.timeout_var, width=10)
+        timeout_spinbox.grid(row=row, column=1, pady=5, sticky=tk.W)
+        help_btn = ttk.Button(frame, text='?', width=3)
+        help_btn.grid(row=row, column=3, padx=5, pady=5)
+        ToolTip(help_btn, "How long to wait for fish before recasting line (seconds)")
+        self.timeout_var.trace_add('write', lambda *args: setattr(self, 'scan_timeout', self.timeout_var.get()))
+        row += 1
+        
+        ttk.Label(frame, text='Wait After Loss (s):').grid(row=row, column=0, sticky=tk.W, pady=5)
+        self.wait_var = tk.DoubleVar(value=self.wait_after_loss)
+        wait_spinbox = ttk.Spinbox(frame, from_=0.0, to=10.0, increment=0.1, textvariable=self.wait_var, width=10)
+        wait_spinbox.grid(row=row, column=1, pady=5, sticky=tk.W)
+        help_btn = ttk.Button(frame, text='?', width=3)
+        help_btn.grid(row=row, column=3, padx=5, pady=5)
+        ToolTip(help_btn, "Pause time after losing a fish before recasting (seconds)")
+        self.wait_var.trace_add('write', lambda *args: setattr(self, 'wait_after_loss', self.wait_var.get()))
+
+    def create_hotkeys_section(self, start_row):
+        """Create the hotkey bindings collapsible section"""
+        section = CollapsibleFrame(self.main_frame, "⌨️ Hotkey Bindings", start_row)
+        self.collapsible_sections['hotkeys'] = section
+        frame = section.get_content_frame()
+        
+        row = 0
+        ttk.Label(frame, text='Toggle Main Loop:').grid(row=row, column=0, sticky=tk.W, pady=5)
+        self.loop_key_label = ttk.Label(frame, text=self.hotkeys['toggle_loop'].upper(), relief=tk.RIDGE, padding=5, width=10)
+        self.loop_key_label.grid(row=row, column=1, pady=5)
+        self.loop_rebind_btn = ttk.Button(frame, text='Rebind', command=lambda: self.start_rebind('toggle_loop'))
+        self.loop_rebind_btn.grid(row=row, column=2, padx=5, pady=5)
+        help_btn = ttk.Button(frame, text='?', width=3)
+        help_btn.grid(row=row, column=3, padx=5, pady=5)
+        ToolTip(help_btn, "Start/stop the fishing bot")
+        row += 1
+        
+        ttk.Label(frame, text='Toggle Overlay:').grid(row=row, column=0, sticky=tk.W, pady=5)
+        self.overlay_key_label = ttk.Label(frame, text=self.hotkeys['toggle_overlay'].upper(), relief=tk.RIDGE, padding=5, width=10)
+        self.overlay_key_label.grid(row=row, column=1, pady=5)
+        self.overlay_rebind_btn = ttk.Button(frame, text='Rebind', command=lambda: self.start_rebind('toggle_overlay'))
+        self.overlay_rebind_btn.grid(row=row, column=2, padx=5, pady=5)
+        help_btn = ttk.Button(frame, text='?', width=3)
+        help_btn.grid(row=row, column=3, padx=5, pady=5)
+        ToolTip(help_btn, "Show/hide blue detection area overlay")
+        row += 1
+        
+        ttk.Label(frame, text='Exit:').grid(row=row, column=0, sticky=tk.W, pady=5)
+        self.exit_key_label = ttk.Label(frame, text=self.hotkeys['exit'].upper(), relief=tk.RIDGE, padding=5, width=10)
+        self.exit_key_label.grid(row=row, column=1, pady=5)
+        self.exit_rebind_btn = ttk.Button(frame, text='Rebind', command=lambda: self.start_rebind('exit'))
+        self.exit_rebind_btn.grid(row=row, column=2, padx=5, pady=5)
+        help_btn = ttk.Button(frame, text='?', width=3)
+        help_btn.grid(row=row, column=3, padx=5, pady=5)
+        ToolTip(help_btn, "Close the application completely")
+
+    def apply_theme(self):
+        """Apply the current theme to the application"""
+        style = ttk.Style()
+        
+        if self.dark_theme:
+            # Modern dark theme with gradients and rounded corners
+            self.root.configure(bg='#0d1117')
+            style.theme_use('clam')
+            
+            # Modern dark colors
+            style.configure('TFrame', 
+                          background='#0d1117',
+                          relief='flat',
+                          borderwidth=0)
+            
+            style.configure('TLabel', 
+                          background='#0d1117', 
+                          foreground='#f0f6fc',
+                          font=('Segoe UI', 9))
+            
+            # Modern button styling
+            style.configure('TButton',
+                          background='#21262d',
+                          foreground='#f0f6fc',
+                          borderwidth=1,
+                          focuscolor='none',
+                          font=('Segoe UI', 9),
+                          relief='flat')
+            style.map('TButton',
+                     background=[('active', '#30363d'), ('pressed', '#1c2128')],
+                     bordercolor=[('active', '#58a6ff'), ('pressed', '#1f6feb')])
+            
+            # Accent button for primary actions
+            style.configure('Accent.TButton',
+                          background='#238636',
+                          foreground='#ffffff',
+                          borderwidth=0,
+                          font=('Segoe UI', 9, 'bold'))
+            style.map('Accent.TButton',
+                     background=[('active', '#2ea043'), ('pressed', '#1a7f37')])
+            
+            # Status buttons
+            style.configure('Status.TButton',
+                          background='#1f6feb',
+                          foreground='#ffffff',
+                          borderwidth=0,
+                          font=('Segoe UI', 9))
+            style.map('Status.TButton',
+                     background=[('active', '#388bfd'), ('pressed', '#0969da')])
+            
+            style.configure('TCheckbutton',
+                          background='#0d1117',
+                          foreground='#f0f6fc',
+                          focuscolor='none',
+                          font=('Segoe UI', 9))
+            style.map('TCheckbutton',
+                     background=[('active', '#0d1117')])
+            
+            style.configure('TSpinbox',
+                          fieldbackground='#21262d',
+                          background='#21262d',
+                          foreground='#f0f6fc',
+                          bordercolor='#30363d',
+                          arrowcolor='#f0f6fc',
+                          font=('Segoe UI', 9))
+            
+            # Header styling
+            style.configure('Title.TLabel',
+                          background='#0d1117',
+                          foreground='#58a6ff',
+                          font=('Segoe UI', 18, 'bold'))
+            
+            style.configure('Subtitle.TLabel',
+                          background='#0d1117',
+                          foreground='#8b949e',
+                          font=('Segoe UI', 8))
+            
+            # Status labels
+            style.configure('StatusOn.TLabel',
+                          background='#0d1117',
+                          foreground='#3fb950',
+                          font=('Segoe UI', 10, 'bold'))
+            
+            style.configure('StatusOff.TLabel',
+                          background='#0d1117',
+                          foreground='#f85149',
+                          font=('Segoe UI', 10))
+            
+            style.configure('Counter.TLabel',
+                          background='#0d1117',
+                          foreground='#a5a5a5',
+                          font=('Segoe UI', 11, 'bold'))
+            
+            self.theme_btn.config(text='☀️ Light Mode')
+        else:
+            # Modern light theme with clean styling
+            self.root.configure(bg='#fafbfc')
+            style.theme_use('clam')
+            
+            # Light theme colors
+            style.configure('TFrame', 
+                          background='#fafbfc',
+                          relief='flat',
+                          borderwidth=0)
+            
+            style.configure('TLabel', 
+                          background='#fafbfc', 
+                          foreground='#24292f',
+                          font=('Segoe UI', 9))
+            
+            # Modern button styling for light mode
+            style.configure('TButton',
+                          background='#f6f8fa',
+                          foreground='#24292f',
+                          borderwidth=1,
+                          focuscolor='none',
+                          font=('Segoe UI', 9),
+                          relief='flat')
+            style.map('TButton',
+                     background=[('active', '#f3f4f6'), ('pressed', '#e1e4e8')],
+                     bordercolor=[('active', '#0969da'), ('pressed', '#0550ae')])
+            
+            # Accent button for primary actions
+            style.configure('Accent.TButton',
+                          background='#2da44e',
+                          foreground='#ffffff',
+                          borderwidth=0,
+                          font=('Segoe UI', 9, 'bold'))
+            style.map('Accent.TButton',
+                     background=[('active', '#2c974b'), ('pressed', '#298e46')])
+            
+            # Status buttons
+            style.configure('Status.TButton',
+                          background='#0969da',
+                          foreground='#ffffff',
+                          borderwidth=0,
+                          font=('Segoe UI', 9))
+            style.map('Status.TButton',
+                     background=[('active', '#0860ca'), ('pressed', '#0757ba')])
+            
+            style.configure('TCheckbutton',
+                          background='#fafbfc',
+                          foreground='#24292f',
+                          focuscolor='none',
+                          font=('Segoe UI', 9))
+            style.map('TCheckbutton',
+                     background=[('active', '#fafbfc')])
+            
+            style.configure('TSpinbox',
+                          fieldbackground='#ffffff',
+                          background='#f6f8fa',
+                          foreground='#24292f',
+                          bordercolor='#d0d7de',
+                          arrowcolor='#24292f',
+                          font=('Segoe UI', 9))
+            
+            # Header styling
+            style.configure('Title.TLabel',
+                          background='#fafbfc',
+                          foreground='#0969da',
+                          font=('Segoe UI', 18, 'bold'))
+            
+            style.configure('Subtitle.TLabel',
+                          background='#fafbfc',
+                          foreground='#656d76',
+                          font=('Segoe UI', 8))
+            
+            # Status labels
+            style.configure('StatusOn.TLabel',
+                          background='#fafbfc',
+                          foreground='#1a7f37',
+                          font=('Segoe UI', 10, 'bold'))
+            
+            style.configure('StatusOff.TLabel',
+                          background='#fafbfc',
+                          foreground='#cf222e',
+                          font=('Segoe UI', 10))
+            
+            style.configure('Counter.TLabel',
+                          background='#fafbfc',
+                          foreground='#656d76',
+                          font=('Segoe UI', 11, 'bold'))
+            
+            self.theme_btn.config(text='🌙 Dark Mode')
+
+    def toggle_theme(self):
+        """Toggle between dark and light themes"""
+        self.dark_theme = not self.dark_theme
+        self.apply_theme()
+
+    def save_preset(self):
+        """Save current settings as a preset"""
+        preset_name = simpledialog.askstring("Save Preset", "Enter preset name:")
+        if not preset_name:
+            return
+            
+        preset_data = {
+            'auto_purchase_enabled': self.auto_purchase_var.get(),
+            'auto_purchase_amount': self.amount_var.get(),
+            'loops_per_purchase': self.loops_var.get(),
+            'point_coords': self.point_coords,
+            'kp': self.kp_var.get(),
+            'kd': self.kd_var.get(),
+            'scan_timeout': self.timeout_var.get(),
+            'wait_after_loss': self.wait_var.get(),
+            'hotkeys': self.hotkeys.copy(),
+            'overlay_area': self.overlay_area.copy(),
+            'dark_theme': self.dark_theme,
+            'created': datetime.now().isoformat()
+        }
+        
+        preset_file = os.path.join(self.presets_dir, f"{preset_name}.json")
+        try:
+            with open(preset_file, 'w') as f:
+                json.dump(preset_data, f, indent=2)
+            self.status_msg.config(text=f'Preset "{preset_name}" saved successfully!', foreground='green')
+        except Exception as e:
+            self.status_msg.config(text=f'Error saving preset: {e}', foreground='red')
+
+    def load_preset(self):
+        """Load a preset configuration"""
+        preset_file = filedialog.askopenfilename(
+            title="Load Preset",
+            initialdir=self.presets_dir,
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
+        )
+        
+        if not preset_file:
+            return
+            
+        try:
+            with open(preset_file, 'r') as f:
+                preset_data = json.load(f)
+            
+            # Apply preset data
+            self.auto_purchase_var.set(preset_data.get('auto_purchase_enabled', True))
+            self.amount_var.set(preset_data.get('auto_purchase_amount', 10))
+            self.loops_var.set(preset_data.get('loops_per_purchase', 10))
+            self.point_coords = preset_data.get('point_coords', {1: None, 2: None, 3: None, 4: None})
+            self.kp_var.set(preset_data.get('kp', 0.1))
+            self.kd_var.set(preset_data.get('kd', 0.5))
+            self.timeout_var.set(preset_data.get('scan_timeout', 15.0))
+            self.wait_var.set(preset_data.get('wait_after_loss', 1.0))
+            self.hotkeys = preset_data.get('hotkeys', {'toggle_loop': 'f1', 'toggle_overlay': 'f2', 'exit': 'f3'})
+            self.overlay_area = preset_data.get('overlay_area', self.overlay_area)
+            self.dark_theme = preset_data.get('dark_theme', True)
+            
+            # Update UI elements
+            self.update_point_buttons()
+            self.update_hotkey_labels()
+            self.apply_theme()
+            self.register_hotkeys()
+            
+            preset_name = os.path.basename(preset_file).replace('.json', '')
+            self.status_msg.config(text=f'Preset "{preset_name}" loaded successfully!', foreground='green')
+            
+        except Exception as e:
+            self.status_msg.config(text=f'Error loading preset: {e}', foreground='red')
+
+    def update_point_buttons(self):
+        """Update point button texts with coordinates"""
+        for idx, coords in self.point_coords.items():
+            if coords and idx in self.point_buttons:
+                self.point_buttons[idx].config(text=f'Point {idx}: {coords}')
+
+    def update_hotkey_labels(self):
+        """Update hotkey label texts"""
+        self.loop_key_label.config(text=self.hotkeys['toggle_loop'].upper())
+        self.overlay_key_label.config(text=self.hotkeys['toggle_overlay'].upper())
+        self.exit_key_label.config(text=self.hotkeys['exit'].upper())
+
+    def setup_system_tray(self):
+        """Setup system tray functionality"""
+        try:
+            # Create a simple icon
+            image = Image.new('RGB', (64, 64), color='blue')
+            draw = ImageDraw.Draw(image)
+            draw.text((10, 20), "GPO", fill='white')
+            
+            menu = pystray.Menu(
+                pystray.MenuItem("Show", self.show_from_tray),
+                pystray.MenuItem("Toggle Loop", self.toggle_main_loop),
+                pystray.MenuItem("Toggle Overlay", self.toggle_overlay),
+                pystray.MenuItem("Exit", self.exit_app)
+            )
+            
+            self.tray_icon = pystray.Icon("GPO Autofish", image, menu=menu)
+        except Exception as e:
+            print(f"Error setting up system tray: {e}")
+
+    def minimize_to_tray(self):
+        """Minimize the application to system tray"""
+        if self.tray_icon:
+            self.root.withdraw()
+            threading.Thread(target=self.tray_icon.run, daemon=True).start()
+
+    def show_from_tray(self):
+        """Show the application from system tray"""
+        self.root.deiconify()
+        self.root.lift()
+        if self.tray_icon:
+            self.tray_icon.stop()
 
 def main():
     root = tk.Tk()

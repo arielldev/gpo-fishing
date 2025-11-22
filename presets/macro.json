@@ -1,0 +1,40 @@
+{
+  "auto_purchase_enabled": true,
+  "auto_purchase_amount": 10,
+  "loops_per_purchase": 10,
+  "point_coords": {
+    "1": [
+      797,
+      939
+    ],
+    "2": [
+      933,
+      943
+    ],
+    "3": [
+      1100,
+      945
+    ],
+    "4": [
+      718,
+      336
+    ]
+  },
+  "kp": 0.1,
+  "kd": 0.5,
+  "scan_timeout": 15.0,
+  "wait_after_loss": 1.0,
+  "hotkeys": {
+    "toggle_loop": "f1",
+    "toggle_overlay": "f2",
+    "exit": "f3"
+  },
+  "overlay_area": {
+    "x": 1060,
+    "y": 371,
+    "width": 172,
+    "height": 495
+  },
+  "dark_theme": true,
+  "created": "2025-11-21T22:47:28.820307"
+}

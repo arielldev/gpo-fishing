@@ -147,6 +147,15 @@ class HotkeyGUI:
         self.webhook_interval = 10  # Send webhook every X loops
         self.webhook_counter = 0  # Track loops for webhook
         
+        # Performance settings
+        self.silent_mode = False  # Reduce console logging
+        self.verbose_logging = False  # Detailed logging for debugging
+        
+        # Check if running with pythonw (silent mode)
+        import sys
+        if 'pythonw' in sys.executable.lower():
+            self.silent_mode = True
+        
         # UI/UX improvements
         self.dark_theme = True  # Default to dark theme
         self.tray_icon = None
@@ -166,6 +175,13 @@ class HotkeyGUI:
         # Setup system tray if available
         if TRAY_AVAILABLE:
             self.setup_system_tray()
+
+    def log(self, message, level="info"):
+        """Smart logging that respects silent mode"""
+        if self.silent_mode and level == "verbose":
+            return
+        if not self.silent_mode or level in ["error", "important"]:
+            print(message)
 
     def get_dpi_scale(self):
         """Get the DPI scaling factor for the current display"""  # inserted
@@ -355,7 +371,7 @@ Sequence (per user spec):
         amount = str(self.auto_purchase_amount)
         
         # Press 'e' key
-        print('Pressing E key...')
+        self.log('Pressing E key...', "verbose")
         keyboard.press_and_release('e')
         threading.Event().wait(self.purchase_delay_after_key)
         
@@ -363,7 +379,7 @@ Sequence (per user spec):
             return
         
         # Click point 1
-        print(f'Clicking Point 1: {pts[1]}')
+        self.log(f'Clicking Point 1: {pts[1]}', "verbose")
         self._click_at(pts[1])
         threading.Event().wait(self.purchase_click_delay)
         
@@ -371,7 +387,7 @@ Sequence (per user spec):
             return
         
         # Click point 2
-        print(f'Clicking Point 2: {pts[2]}')
+        self.log(f'Clicking Point 2: {pts[2]}', "verbose")
         self._click_at(pts[2])
         threading.Event().wait(self.purchase_click_delay)
         
@@ -379,7 +395,7 @@ Sequence (per user spec):
             return
         
         # Type amount
-        print(f'Typing amount: {amount}')
+        self.log(f'Typing amount: {amount}', "verbose")
         keyboard.write(amount)
         threading.Event().wait(self.purchase_after_type_delay)
         
@@ -514,7 +530,7 @@ Sequence (per user spec):
             self.root.after(0, lambda: self.fish_counter_label.config(text=f'🐟 Fish: {self.fish_count}'))
         except Exception:
             pass
-        print(f'Fish caught: {self.fish_count}')
+        self.log(f'🐟 Fish caught: {self.fish_count}', "important")
         
         # Check if we should send webhook
         if self.webhook_enabled and self.webhook_counter >= self.webhook_interval:

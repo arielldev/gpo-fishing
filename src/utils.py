@@ -1,5 +1,5 @@
-import customtkinter as ctk
 import tkinter as tk
+from tkinter import ttk
 
 # Consistent Dark Red Color Palette
 MAIN_COLOR = "#DC2626"      # Tailwind red-600 (consistent dark red)
@@ -53,57 +53,20 @@ class ToolTip:
         self.tooltip_window = tw = tk.Toplevel(self.widget)
         tw.wm_overrideredirect(True)
         tw.wm_attributes('-topmost', True)
-        tw.wm_attributes('-alpha', 0.98)
         
-        # Create enhanced tooltip with shadow effect
-        shadow_frame = ctk.CTkFrame(
-            tw, 
-            fg_color="#000000", 
-            corner_radius=12,
-            border_width=0
-        )
-        shadow_frame.pack(padx=3, pady=3)
-        
-        main_frame = ctk.CTkFrame(
-            shadow_frame,
-            fg_color="#1F2937",
-            corner_radius=10,
-            border_width=2,
-            border_color="#60A5FA"  # Blue border for visibility
-        )
-        main_frame.pack(padx=1, pady=1)
-        
-        # Add icon for better visibility
-        header_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        header_frame.pack(fill='x', padx=8, pady=(8, 4))
-        
-        icon_label = ctk.CTkLabel(
-            header_frame,
-            text="💡",
-            font=ctk.CTkFont(size=14),
-            text_color="#60A5FA"
-        )
-        icon_label.pack(side='left')
-        
-        help_label = ctk.CTkLabel(
-            header_frame,
-            text="Help",
-            font=ctk.CTkFont(size=11, weight="bold"),
-            text_color="#60A5FA"
-        )
-        help_label.pack(side='left', padx=(5, 0))
-        
-        # Main tooltip text
-        text_label = ctk.CTkLabel(
-            main_frame,
+        # Simple tooltip with regular tkinter
+        label = tk.Label(
+            tw,
             text=self.text,
             justify='left',
-            font=ctk.CTkFont(size=12),
-            text_color="white",
+            background="#1F2937",
+            foreground="white",
+            relief='solid',
+            borderwidth=1,
             wraplength=350,
-            anchor="w"
+            font=('Arial', 10)
         )
-        text_label.pack(padx=12, pady=(0, 12), fill='x')
+        label.pack()
         
         # Position the tooltip
         tw.wm_geometry(f"+{tooltip_x}+{tooltip_y}")
@@ -116,17 +79,16 @@ class ToolTip:
             self.tooltip_window.destroy()
             self.tooltip_window = None
 
-class GlassFrame(ctk.CTkFrame):
+class GlassFrame(tk.Frame):
     """Modern white frame with red border"""
     def __init__(self, master, **kwargs):
         glass_color = kwargs.pop('glass_color', BG_COLOR)  # White background
         
         super().__init__(
             master,
-            fg_color=glass_color,
-            corner_radius=15,
-            border_width=2,
-            border_color=BORDER_COLOR,  # Red border
+            bg=glass_color,
+            relief='solid',
+            bd=2,
             **kwargs
         )
 

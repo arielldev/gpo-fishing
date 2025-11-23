@@ -17,14 +17,10 @@ import time
 from datetime import datetime
 try:
     import pystray
-    from PIL import Image, ImageDraw, ImageTk
+    from PIL import Image, ImageDraw
     TRAY_AVAILABLE = True
 except ImportError:
     TRAY_AVAILABLE = False
-
-# Import the theme manager
-from themes import ThemeManager
-from fishing import FishingBot
 
 class ToolTip:
     """Simple tooltip class for hover explanations"""
@@ -116,17 +112,6 @@ class HotkeyGUI:
         self.root = root
         self.root.title('GPO Autofish')
         self.root.attributes('-topmost', True)
-        
-        # Set window icon
-        try:
-            if os.path.exists("images/icon.webp"):
-                icon_image = Image.open("images/icon.webp")
-                icon_image = icon_image.resize((32, 32), Image.Resampling.LANCZOS)
-                icon_photo = ImageTk.PhotoImage(icon_image)
-                self.root.iconphoto(True, icon_photo)
-        except Exception as e:
-            print(f"Could not set window icon: {e}")
-        
         try:
             ctypes.windll.shcore.SetProcessDpiAwareness(1)
         except:
@@ -168,7 +153,7 @@ class HotkeyGUI:
         self.last_update_check = 0
         self.update_check_interval = 300  # Check every 5min
         self.pending_update = None  # Store update info when main loop is active
-        self.current_version = "1.5"  # Current version
+        self.current_version = "1.4.4"  # Current version
         self.repo_url = "https://api.github.com/repos/arielldev/gpo-fishing/commits/main"
         
         # Performance settings
@@ -217,20 +202,8 @@ class HotkeyGUI:
         
         # UI/UX improvements
         self.dark_theme = True  # Default to dark theme
-        self.current_theme = "default"  # Default theme
         self.tray_icon = None
         self.collapsible_sections = {}
-        self.theme_window = None
-        
-        # Initialize theme manager
-        self.theme_manager = ThemeManager(self)
-        
-        # Initialize webhook manager
-        from webhook import WebhookManager
-        self.webhook_manager = WebhookManager(self)
-        
-        # Initialize fishing bot
-        self.fishing_bot = FishingBot(self)
         
         # Preset management
         self.presets_dir = "presets"
@@ -333,39 +306,26 @@ class HotkeyGUI:
         header_frame.grid(row=current_row, column=0, sticky='ew', pady=(0, 20))
         header_frame.columnconfigure(0, weight=1)
         
-        # Logo at the top
-        try:
-            if os.path.exists("images/icon.webp"):
-                logo_image = Image.open("images/icon.webp")
-                # Resize logo to appropriate size for header
-                logo_image = logo_image.resize((64, 64), Image.Resampling.LANCZOS)
-                logo_photo = ImageTk.PhotoImage(logo_image)
-                logo_label = ttk.Label(header_frame, image=logo_photo)
-                logo_label.image = logo_photo  # Keep a reference to prevent garbage collection
-                logo_label.grid(row=0, column=0, pady=(0, 10))
-        except Exception as e:
-            print(f"Could not load header logo: {e}")
-        
         # App title with modern styling
-        title = ttk.Label(header_frame, text='GPO Autofish', style='Title.TLabel')
-        title.grid(row=1, column=0, pady=(0, 5))
+        title = ttk.Label(header_frame, text='🎣 GPO Autofish', style='Title.TLabel')
+        title.grid(row=0, column=0, pady=(0, 5))
         
         # Subtitle
         credits = ttk.Label(header_frame, text='by Ariel', 
                            style='Subtitle.TLabel')
-        credits.grid(row=2, column=0, pady=(0, 15))
+        credits.grid(row=1, column=0, pady=(0, 15))
         
         # Modern control panel
         control_panel = ttk.Frame(header_frame)
-        control_panel.grid(row=3, column=0, sticky='ew', pady=(0, 10))
+        control_panel.grid(row=2, column=0, sticky='ew', pady=(0, 10))
         control_panel.columnconfigure(1, weight=1)  # Center spacing
         
         # Left controls
         left_controls = ttk.Frame(control_panel)
         left_controls.grid(row=0, column=0, sticky='w')
         
-        self.theme_btn = ttk.Button(left_controls, text='🎨 Themes', 
-                                   command=self.theme_manager.open_theme_window, style='TButton')
+        self.theme_btn = ttk.Button(left_controls, text='☀ Light Mode', 
+                                   command=self.toggle_theme, style='TButton')
         self.theme_btn.pack(side=tk.LEFT, padx=(0, 8))
         
         # Right controls - removed Load button, only auto-save now
@@ -395,7 +355,7 @@ class HotkeyGUI:
         self.overlay_status = ttk.Label(status_frame, text='● Overlay: OFF', style='StatusOff.TLabel')
         self.overlay_status.grid(row=0, column=1, padx=10, pady=8)
         
-        self.fish_counter_label = ttk.Label(status_frame, text='Fish: 0', style='Counter.TLabel')
+        self.fish_counter_label = ttk.Label(status_frame, text='🐟 Fish: 0', style='Counter.TLabel')
         self.fish_counter_label.grid(row=0, column=2, padx=10, pady=8)
         
         # Second row - Just runtime (centered)
@@ -428,25 +388,9 @@ class HotkeyGUI:
         current_row += 1
         
         # Status message for dynamic updates
-        self.status_msg = ttk.Label(self.main_frame, text='Ready to fish!', 
+        self.status_msg = ttk.Label(self.main_frame, text='Ready to fish! 🎣', 
                                    font=('Segoe UI', 9), foreground='#58a6ff')
         self.status_msg.grid(row=current_row, column=0, pady=(10, 0))
-
-    def update_status(self, message, status_type='info', icon='ℹ️'):
-        """Update the status message with color coding"""
-        try:
-            theme_colors = self.theme_manager.themes[self.current_theme]["colors"]
-            color_map = {
-                'info': theme_colors["accent"],
-                'success': theme_colors["success"],
-                'error': theme_colors["error"],
-                'warning': theme_colors["warning"]
-            }
-            color = color_map.get(status_type, theme_colors["fg"])
-            self.status_msg.config(text=f'{icon} {message}', foreground=color)
-        except Exception:
-            # Fallback if theme system fails
-            self.status_msg.config(text=f'{icon} {message}', foreground='blue')
 
     def capture_mouse_click(self, idx):
         """Start a listener to capture the next mouse click and store its coordinates."""  # inserted
@@ -606,7 +550,7 @@ Sequence (per user spec):
         threading.Event().wait(self.purchase_click_delay)
         
         # Send webhook notification for auto purchase
-        self.webhook_manager.send_purchase(amount)
+        self.send_purchase_webhook(amount)
         print()
 
     def start_rebind(self, action):
@@ -811,11 +755,11 @@ Sequence (per user spec):
         if blue_found:
             self.log('🎯 Blue fishing bar detected - resuming from current state', "important")
             # Jump directly into the main loop detection
-            self.fishing_bot.run_main_loop()
+            self.main_loop()
         else:
             self.log('🎣 No fishing bar detected - starting fresh', "important")
             # Start from scratch with auto-purchase check and casting
-            self.fishing_bot.run_main_loop()
+            self.main_loop()
 
     def increment_fish_counter(self):
         """Increment fish counter and update display"""
@@ -834,7 +778,7 @@ Sequence (per user spec):
         
         # Check if we should send webhook
         if self.webhook_enabled and self.webhook_counter >= self.webhook_interval:
-            self.webhook_manager.send_fishing_progress()
+            self.send_discord_webhook()
             self.webhook_counter = 0
 
     def reset_fish_counter(self):
@@ -845,6 +789,183 @@ Sequence (per user spec):
             self.root.after(0, lambda: self.fish_counter_label.config(text=f'🐟 Fish: {self.fish_count}'))
         except Exception:
             pass
+
+    def send_discord_webhook(self):
+        """Send Discord webhook with fishing progress"""
+        if not self.webhook_url or not self.webhook_enabled:
+            return
+            
+        try:
+            import requests
+            import json
+            from datetime import datetime
+            
+            # Create embed with nice design
+            embed = {
+                "title": "🎣 GPO Autofish Progress",
+                "description": f"Successfully caught **{self.webhook_interval}** fish!",
+                "color": 0x00ff00,  # Green color
+                "fields": [
+                    {
+                        "name": "🐟 Total Fish Caught",
+                        "value": str(self.fish_count),
+                        "inline": True
+                    },
+                    {
+                        "name": "⏱️ Session Progress",
+                        "value": f"{self.webhook_interval} fish in last interval",
+                        "inline": True
+                    }
+                ],
+                "footer": {
+                    "text": "GPO Autofish - Open Source",
+                    "icon_url": "https://cdn.discordapp.com/emojis/🎣.png"
+                },
+                "timestamp": datetime.utcnow().isoformat()
+            }
+            
+            payload = {
+                "embeds": [embed],
+                "username": "GPO Autofish Bot",
+                "avatar_url": "https://cdn.discordapp.com/emojis/🎣.png"
+            }
+            
+            response = requests.post(self.webhook_url, json=payload, timeout=10)
+            if response.status_code == 204:
+                print(f"✅ Webhook sent: {self.webhook_interval} fish caught!")
+            else:
+                print(f"❌ Webhook failed: {response.status_code}")
+                
+        except Exception as e:
+            print(f"❌ Webhook error: {e}")
+
+    def send_purchase_webhook(self, amount):
+        """Send Discord webhook when auto purchase runs"""
+        if not self.webhook_url or not self.webhook_enabled:
+            return
+            
+        try:
+            import requests
+            from datetime import datetime
+            
+            # Create embed for auto purchase
+            embed = {
+                "title": "🛒 GPO Autofish - Auto Purchase",
+                "description": f"Successfully purchased **{amount}** bait!",
+                "color": 0xffa500,  # Orange color
+                "fields": [
+                    {
+                        "name": "🎣 Bait Purchased",
+                        "value": str(amount),
+                        "inline": True
+                    },
+                    {
+                        "name": "🐟 Total Fish Caught",
+                        "value": str(self.fish_count),
+                        "inline": True
+                    },
+                    {
+                        "name": "🔄 Status",
+                        "value": "Auto purchase completed successfully",
+                        "inline": False
+                    }
+                ],
+                "footer": {
+                    "text": "GPO Autofish - Auto Purchase System",
+                },
+                "timestamp": datetime.utcnow().isoformat()
+            }
+            
+            payload = {
+                "embeds": [embed],
+                "username": "GPO Autofish Bot"
+            }
+            
+            response = requests.post(self.webhook_url, json=payload, timeout=10)
+            if response.status_code == 204:
+                print(f"✅ Purchase webhook sent: Bought {amount} bait!")
+            else:
+                print(f"❌ Purchase webhook failed: {response.status_code}")
+                
+        except Exception as e:
+            print(f"❌ Purchase webhook error: {e}")
+
+    def send_recovery_webhook(self, recovery_info):
+        """Send Discord webhook when recovery system triggers"""
+        if not self.webhook_url or not self.webhook_enabled:
+            return
+            
+        try:
+            import requests
+            from datetime import datetime
+            
+            # Determine color based on recovery count
+            if recovery_info["recovery_number"] == 1:
+                color = 0xffff00  # Yellow for first recovery
+            elif recovery_info["recovery_number"] <= 3:
+                color = 0xffa500  # Orange for few recoveries
+            else:
+                color = 0xff0000  # Red for many recoveries
+            
+            # Create detailed embed for recovery
+            embed = {
+                "title": "🔄 GPO Autofish - Recovery Triggered",
+                "description": f"Recovery #{recovery_info['recovery_number']} - System detected stuck state",
+                "color": color,
+                "fields": [
+                    {
+                        "name": "🚨 Stuck Action",
+                        "value": recovery_info["stuck_state"],
+                        "inline": True
+                    },
+                    {
+                        "name": "⏱️ Stuck Duration",
+                        "value": f"{recovery_info['stuck_duration']:.1f}s",
+                        "inline": True
+                    },
+                    {
+                        "name": "🔢 Recovery Count",
+                        "value": str(recovery_info["recovery_number"]),
+                        "inline": True
+                    },
+                    {
+                        "name": "🐟 Fish Caught",
+                        "value": str(self.fish_count),
+                        "inline": True
+                    },
+                    {
+                        "name": "📊 Status",
+                        "value": "System automatically restarted",
+                        "inline": False
+                    }
+                ],
+                "footer": {
+                    "text": "GPO Autofish - Recovry",
+                },
+                "timestamp": datetime.utcnow().isoformat()
+            }
+            
+            # Add dev details if available
+            if (self.dev_mode or self.verbose_logging) and recovery_info.get("state_details"):
+                embed["fields"].append({
+                    "name": "🔍 Dev Details",
+                    "value": str(recovery_info["state_details"])[:1000],  # Limit length
+                    "inline": False
+                })
+            
+            payload = {
+                "embeds": [embed],
+                "username": "GPO Autofish Recovery Bot"
+            }
+            
+            response = requests.post(self.webhook_url, json=payload, timeout=10)
+            if response.status_code == 204:
+                print(f"✅ Recovery webhook sent: Recovery #{recovery_info['recovery_number']}")
+            else:
+                print(f"❌ Recovery webhook failed: {response.status_code}")
+                
+        except Exception as e:
+            print(f"❌ Recovery webhook error: {e}")
 
     def check_and_purchase(self):
         """Check if we need to auto-purchase and run sequence if needed"""  # inserted
@@ -873,10 +994,309 @@ Sequence (per user spec):
         self.log('Line cast', "verbose")
 
     def main_loop(self):
-        """Main loop that runs when activated - delegates to fishing bot"""
-        self.fishing_bot.run_main_loop()
+        """Main loop that runs when activated"""
+        print('Main loop started')
+        target_color = (85, 170, 255)
+        dark_color = (25, 25, 25)
+        white_color = (255, 255, 255)
+        import time
+        
+        # Set dev mode based on verbose logging
+        self.dev_mode = self.verbose_logging
+        
+        with mss.mss() as sct:
+            # Auto-purchase sequence with detailed state tracking
+            if getattr(self, 'auto_purchase_var', None) and self.auto_purchase_var.get():
+                self.set_recovery_state("purchasing", {"sequence": "auto_purchase", "loops_per_purchase": getattr(self, 'loops_per_purchase', 1)})
+                self.perform_auto_purchase_sequence()
+            
+            # Main fishing loop with improved state management
+            while self.main_loop_active:
+                try:
+                    # Casting with state tracking
+                    self.set_recovery_state("casting", {"action": "initial_cast"})
+                    self.cast_line()
+                    cast_time = time.time()
+                    
+                    # Fishing detection with state tracking
+                    self.set_recovery_state("fishing", {"action": "blue_bar_detection", "scan_timeout": self.scan_timeout})
+                    detected = False
+                    last_detection_time = time.time()
+                    was_detecting = False
+                    print('Entering main detection loop with smart monitoring...')
+                    
+                    # Blue bar detection loop with timeout protection
+                    detection_start_time = time.time()
+                    while self.main_loop_active:
+                        # Check if recovery is needed
+                        if self.check_recovery_needed():
+                            self.perform_recovery()
+                            return
+                        
+                        # Force timeout if detection takes too long (prevents infinite loops)
+                        current_time = time.time()
+                        if current_time - detection_start_time > self.scan_timeout + 10:  # Extra 10s buffer
+                            print(f'🚨 FORCE TIMEOUT: Detection loop exceeded {self.scan_timeout + 10}s, breaking...')
+                            self.set_recovery_state("idle", {"action": "force_timeout_break"})
+                            break
+                        
+                        x = self.overlay_area['x']
+                        y = self.overlay_area['y']
+                        width = self.overlay_area['width']
+                        height = self.overlay_area['height']
+                        monitor = {'left': x, 'top': y, 'width': width, 'height': height}
+                        screenshot = sct.grab(monitor)
+                        img = np.array(screenshot)
+                        point1_x = None
+                        point1_y = None
+                        found_first = False
+                        for row_idx in range(height):
+                            for col_idx in range(width):
+                                b, g, r = img[row_idx, col_idx, 0:3]
+                                if r == target_color[0] and g == target_color[1] and b == target_color[2]:
+                                    point1_x = x + col_idx
+                                    point1_y = y + row_idx
+                                    found_first = True
+                                    break
+                            if found_first:
+                                break
+                        current_time = time.time()
+                        
+                        if found_first:
+                            detected = True
+                            last_detection_time = current_time
+                        else:
+                            # No blue bar found - check if we should timeout (enhanced with smart tracking)
+                            if not detected and current_time - cast_time > self.scan_timeout:
+                                print(f'Cast timeout after {self.scan_timeout}s, recasting...')
+                                self.set_recovery_state("casting", {"action": "recast_after_timeout", "timeout_duration": self.scan_timeout})
+                                break  # Break out of detection loop to recast
+                            
+                            # If we were previously detecting but now lost it
+                            if was_detecting:
+                                print('Lost detection, waiting...')
+                                threading.Event().wait(self.wait_after_loss)
+                                was_detecting = False
+                                self.check_and_purchase()
+                                self.set_recovery_state("idle", {"action": "fish_caught_processing"})
+                                break  # Break out of detection loop to start new cycle
+                            
+                            threading.Event().wait(0.1)
+                            continue
+                        point2_x = None
+                        row_idx = point1_y - y
+                        for col_idx in range(width - 1, -1, -1):
+                            b, g, r = img[row_idx, col_idx, 0:3]
+                            if r == target_color[0] and g == target_color[1] and b == target_color[2]:
+                                point2_x = x + col_idx
+                                break
+                        if point2_x is None:
+                            threading.Event().wait(0.1)
+                            continue
+                        temp_area_x = point1_x
+                        temp_area_width = point2_x - point1_x + 1
+                        temp_monitor = {'left': temp_area_x, 'top': y, 'width': temp_area_width, 'height': height}
+                        temp_screenshot = sct.grab(temp_monitor)
+                        temp_img = np.array(temp_screenshot)
+                        dark_color = (25, 25, 25)
+                        top_y = None
+                        for row_idx in range(height):
+                            found_dark = False
+                            for col_idx in range(temp_area_width):
+                                b, g, r = temp_img[row_idx, col_idx, 0:3]
+                                if r == dark_color[0] and g == dark_color[1] and b == dark_color[2]:
+                                    top_y = y + row_idx
+                                    found_dark = True
+                                    break
+                            if found_dark:
+                                break
+                        bottom_y = None
+                        for row_idx in range(height - 1, -1, -1):
+                            found_dark = False
+                            for col_idx in range(temp_area_width):
+                                b, g, r = temp_img[row_idx, col_idx, 0:3]
+                                if r == dark_color[0] and g == dark_color[1] and b == dark_color[2]:
+                                    bottom_y = y + row_idx
+                                    found_dark = True
+                                    break
+                            if found_dark:
+                                break
+                        if top_y is None or bottom_y is None:
+                            threading.Event().wait(0.1)
+                            continue
+                        self.real_area = {'x': temp_area_x, 'y': top_y, 'width': temp_area_width, 'height': bottom_y - top_y + 1}
+                        real_x = self.real_area['x']
+                        real_y = self.real_area['y']
+                        real_width = self.real_area['width']
+                        real_height = self.real_area['height']
+                        real_monitor = {'left': real_x, 'top': real_y, 'width': real_width, 'height': real_height}
+                        real_screenshot = sct.grab(real_monitor)
+                        real_img = np.array(real_screenshot)
+                        white_color = (255, 255, 255)
+                        white_top_y = None
+                        white_bottom_y = None
+                        for row_idx in range(real_height):
+                            for col_idx in range(real_width):
+                                b, g, r = real_img[row_idx, col_idx, 0:3]
+                                if r == white_color[0] and g == white_color[1] and b == white_color[2]:
+                                    white_top_y = real_y + row_idx
+                                    break
+                            if white_top_y is not None:
+                                break
+                        for row_idx in range(real_height - 1, -1, -1):
+                            for col_idx in range(real_width):
+                                b, g, r = real_img[row_idx, col_idx, 0:3]
+                                if r == white_color[0] and g == white_color[1] and b == white_color[2]:
+                                    white_bottom_y = real_y + row_idx
+                                    break
+                            if white_bottom_y is not None:
+                                break
+                        if white_top_y is not None and white_bottom_y is not None:
+                            white_height = white_bottom_y - white_top_y + 1
+                            max_gap = white_height * 2
+                        dark_sections = []
+                        current_section_start = None
+                        gap_counter = 0
+                        for row_idx in range(real_height):
+                            has_dark = False
+                            for col_idx in range(real_width):
+                                b, g, r = real_img[row_idx, col_idx, 0:3]
+                                if r == dark_color[0] and g == dark_color[1] and b == dark_color[2]:
+                                    has_dark = True
+                                    break
+                            if has_dark:
+                                gap_counter = 0
+                                if current_section_start is None:
+                                    current_section_start = real_y + row_idx
+                            else:
+                                if current_section_start is not None:
+                                    gap_counter += 1
+                                    if gap_counter > max_gap:
+                                        section_end = real_y + row_idx - gap_counter
+                                        dark_sections.append({'start': current_section_start, 'end': section_end, 'middle': (current_section_start + section_end) // 2})
+                                        current_section_start = None
+                                        gap_counter = 0
+                        if current_section_start is not None:
+                            section_end = real_y + real_height - 1 - gap_counter
+                            dark_sections.append({'start': current_section_start, 'end': section_end, 'middle': (current_section_start + section_end) // 2})
+                        if dark_sections and white_top_y is not None:
+                            # If this is the first time detecting this fish, increment counter
+                            if not was_detecting:
+                                self.increment_fish_counter()
+                                self.set_recovery_state("idle")  # Reset to idle after successful catch
+                            was_detecting = True
+                            last_detection_time = time.time()
+                            for section in dark_sections:
+                                section['size'] = section['end'] - section['start'] + 1
+                            largest_section = max(dark_sections, key=lambda s: s['size'])
+                            print(f'y:{white_top_y}')
+                            print(f"y:{largest_section['middle']}")
+                            raw_error = largest_section['middle'] - white_top_y
+                            normalized_error = raw_error / real_height if real_height > 0 else raw_error
+                            derivative = normalized_error - self.previous_error
+                            self.previous_error = normalized_error
+                            pd_output = self.kp * normalized_error + self.kd * derivative
+                            print(f'Error: {raw_error}px ({normalized_error:.3f} normalized), PD Output: {pd_output:.2f}')
+                            
+                            # Decide whether to hold or release based on PD output
+                            # Positive error/output = middle is below, need to go up = hold click
+                            # Negative error/output = middle is above, need to go down = release click
+                            if pd_output > 0:
+                                # Need to accelerate up - hold left click
+                                if not self.is_clicking:
+                                    win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
+                                    self.is_clicking = True
+                            else:
+                                # Need to accelerate down - release left click
+                                if self.is_clicking:
+                                    win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+                                    self.is_clicking = False
+                            
+                            print()
+                        threading.Event().wait(0.1)
+                    
+                    # End of detection loop - set idle state before next iteration
+                    self.set_recovery_state("idle", {"action": "detection_loop_complete"})
+                    
+                except Exception as e:
+                    print(f'🚨 Main loop error: {e}')
+                    self.log(f'Main loop error: {e}', "error")
+                    # Set recovery state and continue to next iteration
+                    self.set_recovery_state("idle", {"action": "error_recovery", "error": str(e)})
+                    threading.Event().wait(1.0)  # Brief pause before retry
+                    
+        print('Main loop stopped')
+        
+        # Ensure mouse is released when loop stops
+        if self.is_clicking:
+            try:
+                win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+                self.is_clicking = False
+            except:
+                pass
     
-
+    def check_recovery_needed(self):
+        """smart recovery - detects specific stuck actions with detailed logging"""
+        if not self.recovery_enabled or not self.main_loop_active:
+            return False
+            
+        current_time = time.time()
+        
+        # Check more frequently for faster recovery (every 10 seconds instead of 15)
+        if current_time - self.last_smart_check < 10.0:
+            return False
+            
+        self.last_smart_check = current_time
+        
+        # Check if current state has been running too long
+        state_duration = current_time - self.state_start_time
+        max_duration = self.max_state_duration.get(self.current_state, 60.0)
+        
+        # More aggressive timeout for idle state (common stuck state)
+        if self.current_state == "idle" and state_duration > 30.0:  # Reduced from 45s to 30s
+            max_duration = 30.0
+        
+        if state_duration > max_duration:
+            # Create detailed stuck action report
+            stuck_info = {
+                "action": self.current_state,
+                "duration": state_duration,
+                "max_allowed": max_duration,
+                "details": self.state_details.copy(),
+                "timestamp": current_time
+            }
+            self.stuck_actions.append(stuck_info)
+            
+            # Log with different levels based on action type
+            if self.current_state == "fishing":
+                # Blue bar detection rarely gets stuck, this is unusual
+                self.log(f'🚨 UNUSUAL: Fishing state stuck for {state_duration:.0f}s (blue bar detection issue?)', "error")
+            elif self.current_state == "purchasing":
+                self.log(f'⚠️ Purchase sequence stuck for {state_duration:.0f}s - likely menu/UI issue', "error")
+            elif self.current_state == "menu_opening":
+                self.log(f'⚠️ Menu opening stuck for {state_duration:.0f}s - E key or game response issue', "error")
+            elif self.current_state == "typing":
+                self.log(f'⚠️ Typing stuck for {state_duration:.0f}s - input field or keyboard issue', "error")
+            elif self.current_state == "clicking":
+                self.log(f'⚠️ Click action stuck for {state_duration:.0f}s - UI element or mouse issue', "error")
+            elif self.current_state == "idle":
+                self.log(f'� IDLE SSTUCK: System idle for {state_duration:.0f}s - main loop may be frozen', "error")
+            else:
+                self.log(f'⚠️ State "{self.current_state}" stuck for {state_duration:.0f}s (max: {max_duration}s)', "error")
+            
+            # Dev mode detailed logging
+            if self.dev_mode or self.verbose_logging:
+                self.log(f'🔍 DEV: Stuck action details: {stuck_info}', "verbose")
+            
+            return True
+            
+        # More aggressive check for completely frozen state (reduced from 2 minutes to 90 seconds)
+        time_since_activity = current_time - self.last_activity_time
+        if time_since_activity > 90:  # 90 seconds instead of 120
+            self.log(f'⚠️ Complete freeze detected - no activity for {time_since_activity:.0f}s', "error")
+            return True
+            
+        return False
     
     def set_recovery_state(self, state, details=None):
         """Update current state for smart recovery tracking"""
@@ -890,7 +1310,73 @@ Sequence (per user spec):
             detail_str = f" - {details}" if details else ""
             self.log(f'🔄 State: {state}{detail_str}', "verbose")
     
-
+    def perform_recovery(self):
+        """smart recovery with detailed logging and webhook notifications"""
+        if not self.main_loop_active:
+            return
+            
+        current_time = time.time()
+        
+        # Prevent spam recovery (reduced from 15 to 10 seconds for faster response)
+        if current_time - self.last_recovery_time < 10:
+            return
+            
+        self.recovery_count += 1
+        self.last_recovery_time = current_time
+        
+        # Create detailed recovery report
+        recovery_info = {
+            "recovery_number": self.recovery_count,
+            "stuck_state": self.current_state,
+            "stuck_duration": current_time - self.state_start_time,
+            "state_details": self.state_details.copy(),
+            "recent_stuck_actions": self.stuck_actions[-3:] if len(self.stuck_actions) > 0 else [],
+            "timestamp": current_time
+        }
+        
+        self.log(f'🔄 Smart Recovery #{self.recovery_count} - State: {self.current_state} - Restarting...', "error")
+        
+        # Dev mode detailed recovery logging
+        if self.dev_mode or self.verbose_logging:
+            self.log(f'🔍 DEV: Recovery details: {recovery_info}', "verbose")
+        
+        # Send webhook notification about recovery
+        self.send_recovery_webhook(recovery_info)
+        
+        # Force release mouse if stuck clicking
+        if self.is_clicking:
+            try:
+                win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+                self.is_clicking = False
+                self.log('🔧 Released stuck mouse click', "verbose")
+            except Exception as e:
+                self.log(f'⚠️ Error releasing mouse: {e}', "error")
+        
+        # Reset all timers and state
+        self.last_activity_time = current_time
+        self.last_fish_time = current_time
+        self.set_recovery_state("idle", {"action": "recovery_reset"})
+        self.stuck_actions.clear()  # Clear stuck actions after recovery
+        
+        # Stop current loop
+        self.main_loop_active = False
+        
+        # Wait a moment for cleanup
+        threading.Event().wait(2.0)  # Increased wait time for better cleanup
+        
+        # Restart the loop with better error handling
+        try:
+            if hasattr(self, 'main_loop_thread') and self.main_loop_thread and self.main_loop_thread.is_alive():
+                self.main_loop_thread.join(timeout=5.0)  # Increased timeout
+        except Exception as e:
+            self.log(f'⚠️ Error joining thread: {e}', "error")
+        
+        # Restart with fresh state
+        self.main_loop_active = True
+        self.main_loop_thread = threading.Thread(target=self.main_loop, daemon=True)
+        self.main_loop_thread.start()
+        
+        self.log('✅ Smart Recovery complete - Enhanced monitoring active', "important")
     
     def update_runtime_timer(self):
         """Update the runtime display"""
@@ -1762,43 +2248,76 @@ Sequence (per user spec):
 
     def test_webhook(self):
         """Send a test webhook message"""
-        self.webhook_manager.test()
+        if not self.webhook_url:
+            print("❌ Please enter a webhook URL first")
+            return
+            
+        try:
+            import requests
+            from datetime import datetime
+            
+            embed = {
+                "title": "🧪 GPO Autofish Test",
+                "description": "Webhook test successful! ✅",
+                "color": 0x0099ff,  # Blue color
+                "fields": [
+                    {
+                        "name": "🔧 Status",
+                        "value": "Webhook is working correctly",
+                        "inline": True
+                    }
+                ],
+                "footer": {
+                    "text": "GPO Autofish - Open Source",
+                },
+                "timestamp": datetime.utcnow().isoformat()
+            }
+            
+            payload = {
+                "embeds": [embed],
+                "username": "GPO Autofish Bot"
+            }
+            
+            response = requests.post(self.webhook_url, json=payload, timeout=10)
+            if response.status_code == 204:
+                print("✅ Test webhook sent successfully!")
+            else:
+                print(f"❌ Test webhook failed: {response.status_code}")
+                
+        except Exception as e:
+            print(f"❌ Test webhook error: {e}")
 
     def apply_theme(self):
         """Apply the current theme to the application"""
         style = ttk.Style()
         
-        # Get theme colors from theme manager
-        theme_colors = self.theme_manager.themes[self.current_theme]["colors"]
-        is_dark = theme_colors["bg"] == "#0d1117"
-        
-        if is_dark:
+        if self.dark_theme:
             # Modern dark theme with gradients and rounded corners
-            self.root.configure(bg=theme_colors["bg"])
+            self.root.configure(bg='#0d1117')
             style.theme_use('clam')
             
             # Modern dark colors
             style.configure('TFrame', 
-                          background=theme_colors["bg"],
+                          background='#0d1117',
                           relief='flat',
                           borderwidth=0)
             
             style.configure('TLabel', 
-                          background=theme_colors["bg"], 
-                          foreground=theme_colors["fg"],
+                          background='#0d1117', 
+                          foreground='#f0f6fc',
                           font=('Segoe UI', 9))
             
             # Modern button styling
             style.configure('TButton',
-                          background=theme_colors["button_bg"],
-                          foreground=theme_colors["fg"],
+                          background='#21262d',
+                          foreground='#f0f6fc',
                           borderwidth=1,
                           focuscolor='none',
                           font=('Segoe UI', 9),
                           relief='flat')
             style.map('TButton',
-                     background=[('active', theme_colors["button_hover"]), ('pressed', theme_colors["button_hover"])],
-                     bordercolor=[('active', theme_colors["accent"]), ('pressed', theme_colors["accent"])])
+                     background=[('active', '#30363d'), ('pressed', '#1c2128')],
+                     bordercolor=[('active', '#58a6ff'), ('pressed', '#1f6feb')])
             
             # Accent button for primary actions
             style.configure('Accent.TButton',
@@ -1847,69 +2366,69 @@ Sequence (per user spec):
             
             # Header styling
             style.configure('Title.TLabel',
-                          background=theme_colors["bg"],
-                          foreground=theme_colors["accent"],
+                          background='#0d1117',
+                          foreground='#58a6ff',
                           font=('Segoe UI', 18, 'bold'))
             
             style.configure('Subtitle.TLabel',
-                          background=theme_colors["bg"],
-                          foreground=theme_colors["fg"],
+                          background='#0d1117',
+                          foreground='#8b949e',
                           font=('Segoe UI', 8))
             
-            # Section title styling
+            # Section title styling - blue color for dark mode
             style.configure('SectionTitle.TLabel',
-                          background=theme_colors["bg"],
-                          foreground=theme_colors["accent"],
+                          background='#0d1117',
+                          foreground='#58a6ff',
                           font=('Segoe UI', 11, 'bold'))
             
             # Status labels
             style.configure('StatusOn.TLabel',
-                          background=theme_colors["bg"],
-                          foreground=theme_colors["success"],
+                          background='#0d1117',
+                          foreground='#3fb950',
                           font=('Segoe UI', 10, 'bold'))
             
             style.configure('StatusOff.TLabel',
-                          background=theme_colors["bg"],
-                          foreground=theme_colors["error"],
+                          background='#0d1117',
+                          foreground='#f85149',
                           font=('Segoe UI', 10))
             
             style.configure('Counter.TLabel',
-                          background=theme_colors["bg"],
-                          foreground=theme_colors["fg"],
+                          background='#0d1117',
+                          foreground='#a5a5a5',
                           font=('Segoe UI', 11, 'bold'))
             
             # Update canvas background for dark mode
             if hasattr(self, 'canvas'):
-                self.canvas.configure(bg=theme_colors["bg"])
+                self.canvas.configure(bg='#0d1117')
             
-            self.theme_btn.config(text='🎨 Themes')
+            self.theme_btn.config(text='☀ Light Mode')
         else:
             # Modern light theme with clean styling
-            self.root.configure(bg=theme_colors["bg"])
+            self.root.configure(bg='#fafbfc')
             style.theme_use('clam')
             
             # Light theme colors
             style.configure('TFrame', 
-                          background=theme_colors["bg"],
+                          background='#fafbfc',
                           relief='flat',
                           borderwidth=0)
             
             style.configure('TLabel', 
-                          background=theme_colors["bg"], 
-                          foreground=theme_colors["fg"],
+                          background='#fafbfc', 
+                          foreground='#24292f',
                           font=('Segoe UI', 9))
             
             # Modern button styling for light mode
             style.configure('TButton',
-                          background=theme_colors["button_bg"],
-                          foreground=theme_colors["fg"],
+                          background='#e1e4e8',
+                          foreground='#24292f',
                           borderwidth=1,
                           focuscolor='none',
                           font=('Segoe UI', 9),
                           relief='flat')
             style.map('TButton',
-                     background=[('active', theme_colors["button_hover"]), ('pressed', theme_colors["button_hover"])],
-                     bordercolor=[('active', theme_colors["accent"]), ('pressed', theme_colors["accent"])])
+                     background=[('active', '#d0d7de'), ('pressed', '#c6cbd1')],
+                     bordercolor=[('active', '#0969da'), ('pressed', '#0550ae')])
             
             # Accent button for primary actions
             style.configure('Accent.TButton',
@@ -1966,46 +2485,47 @@ Sequence (per user spec):
             
             # Header styling
             style.configure('Title.TLabel',
-                          background=theme_colors["bg"],
-                          foreground=theme_colors["accent"],
+                          background='#fafbfc',
+                          foreground='#0969da',
                           font=('Segoe UI', 18, 'bold'))
             
             style.configure('Subtitle.TLabel',
-                          background=theme_colors["bg"],
-                          foreground=theme_colors["fg"],
+                          background='#fafbfc',
+                          foreground='#656d76',
                           font=('Segoe UI', 8))
             
-            # Section title styling
+            # Section title styling - blue color for light mode
             style.configure('SectionTitle.TLabel',
-                          background=theme_colors["bg"],
-                          foreground=theme_colors["accent"],
+                          background='#fafbfc',
+                          foreground='#0969da',
                           font=('Segoe UI', 11, 'bold'))
             
             # Status labels
             style.configure('StatusOn.TLabel',
-                          background=theme_colors["bg"],
-                          foreground=theme_colors["success"],
+                          background='#fafbfc',
+                          foreground='#1a7f37',
                           font=('Segoe UI', 10, 'bold'))
             
             style.configure('StatusOff.TLabel',
-                          background=theme_colors["bg"],
-                          foreground=theme_colors["error"],
+                          background='#fafbfc',
+                          foreground='#cf222e',
                           font=('Segoe UI', 10))
             
             style.configure('Counter.TLabel',
-                          background=theme_colors["bg"],
-                          foreground=theme_colors["fg"],
+                          background='#fafbfc',
+                          foreground='#656d76',
                           font=('Segoe UI', 11, 'bold'))
             
             # Update canvas background for light mode
             if hasattr(self, 'canvas'):
-                self.canvas.configure(bg=theme_colors["bg"])
+                self.canvas.configure(bg='#fafbfc')
             
-            self.theme_btn.config(text='🎨 Themes')
-        
+            self.theme_btn.config(text='🌙 Dark Mode')
 
-
-
+    def toggle_theme(self):
+        """Toggle between dark and light themes"""
+        self.dark_theme = not self.dark_theme
+        self.apply_theme()
 
     def auto_save_settings(self):
         """Auto-save current settings to default.json"""
@@ -2027,7 +2547,6 @@ Sequence (per user spec):
             'webhook_interval': getattr(self, 'webhook_interval', 10),
             'auto_update_enabled': getattr(self, 'auto_update_enabled', False),
             'dark_theme': getattr(self, 'dark_theme', True),
-            'current_theme': getattr(self, 'current_theme', 'default'),
             'last_saved': datetime.now().isoformat()
         }
         
@@ -2214,7 +2733,6 @@ Sequence (per user spec):
             self.webhook_interval = preset_data.get('webhook_interval', 10)
             self.auto_update_enabled = preset_data.get('auto_update_enabled', False)
             self.dark_theme = preset_data.get('dark_theme', True)
-            self.current_theme = preset_data.get('current_theme', 'default')
             
         except Exception as e:
             print(f'Error loading basic settings: {e}')
@@ -2319,14 +2837,5 @@ def main():
     app = HotkeyGUI(root)
     root.protocol('WM_DELETE_WINDOW', app.exit_app)
     root.mainloop()
-if __name__ == '__main__':
-    main()
-
-def main():
-    root = tk.Tk()
-    app = HotkeyGUI(root)
-    root.protocol('WM_DELETE_WINDOW', app.exit_app)
-    root.mainloop()
-
 if __name__ == '__main__':
     main()

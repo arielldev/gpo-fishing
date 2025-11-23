@@ -288,32 +288,5 @@ class ThemeManager:
     
     def update_logo(self):
         """Update the logo in the main window based on current theme"""
-        try:
-            # Clear existing logo
-            for widget in self.app.logo_frame.winfo_children():
-                widget.destroy()
-            
-            # Load logo (always icon.webp)
-            logo_photo = self.load_logo_for_theme(self.app.current_theme)
-            theme_colors = self.themes[self.app.current_theme]["colors"]
-            
-            if logo_photo:
-                logo_label = tk.Label(
-                    self.app.logo_frame, 
-                    image=logo_photo, 
-                    bg=theme_colors["bg"]
-                )
-                logo_label.image = logo_photo  # Keep a reference
-                logo_label.pack()
-            else:
-                # Fallback to text logo if image fails to load
-                logo_label = tk.Label(
-                    self.app.logo_frame,
-                    text="🎣 GPO Autofish",
-                    font=("Segoe UI", 16, "bold"),
-                    bg=theme_colors["bg"],
-                    fg=theme_colors["accent"]
-                )
-                logo_label.pack()
-        except Exception as e:
-            print(f"Error updating logo: {e}")
+        # Logo functionality disabled - using text title only
+        pass

@@ -10,14 +10,140 @@ class FishingBot:
     def __init__(self, app):
         self.app = app
     
+    def check_recovery_needed(self):
+        """smart recovery - detects specific stuck actions with detailed logging"""
+        if not self.app.recovery_enabled or not self.app.main_loop_active:
+            return False
+            
+        current_time = time.time()
+        
+        # Check more frequently for faster recovery (every 10 seconds instead of 15)
+        if current_time - self.app.last_smart_check < 10.0:
+            return False
+            
+        self.app.last_smart_check = current_time
+        
+        # Check if current state has been running too long
+        state_duration = current_time - self.app.state_start_time
+        max_duration = self.app.max_state_duration.get(self.app.current_state, 60.0)
+        
+        # More aggressive timeout for idle state (common stuck state)
+        if self.app.current_state == "idle" and state_duration > 30.0:  # Reduced from 45s to 30s
+            max_duration = 30.0
+        
+        if state_duration > max_duration:
+            # Create detailed stuck action report
+            stuck_info = {
+                "action": self.app.current_state,
+                "duration": state_duration,
+                "max_allowed": max_duration,
+                "details": self.app.state_details.copy(),
+                "timestamp": current_time
+            }
+            self.app.stuck_actions.append(stuck_info)
+            
+            # Log with different levels based on action type
+            if self.app.current_state == "fishing":
+                # Blue bar detection rarely gets stuck, this is unusual
+                self.app.log(f'🚨 UNUSUAL: Fishing state stuck for {state_duration:.0f}s (blue bar detection issue?)', "error")
+            elif self.app.current_state == "purchasing":
+                self.app.log(f'⚠️ Purchase sequence stuck for {state_duration:.0f}s - likely menu/UI issue', "error")
+            elif self.app.current_state == "menu_opening":
+                self.app.log(f'⚠️ Menu opening stuck for {state_duration:.0f}s - E key or game response issue', "error")
+            elif self.app.current_state == "typing":
+                self.app.log(f'⚠️ Typing stuck for {state_duration:.0f}s - input field or keyboard issue', "error")
+            elif self.app.current_state == "clicking":
+                self.app.log(f'⚠️ Click action stuck for {state_duration:.0f}s - UI element or mouse issue', "error")
+            elif self.app.current_state == "idle":
+                self.app.log(f'🚨 IDLE STUCK: System idle for {state_duration:.0f}s - main loop may be frozen', "error")
+            else:
+                self.app.log(f'⚠️ State "{self.app.current_state}" stuck for {state_duration:.0f}s (max: {max_duration}s)', "error")
+            
+            # Dev mode detailed logging
+            if self.app.dev_mode or self.app.verbose_logging:
+                self.app.log(f'🔍 DEV: Stuck action details: {stuck_info}', "verbose")
+            
+            return True
+            
+        # More aggressive check for completely frozen state (reduced from 2 minutes to 90 seconds)
+        time_since_activity = current_time - self.app.last_activity_time
+        if time_since_activity > 90:  # 90 seconds instead of 120
+            self.app.log(f'⚠️ Complete freeze detected - no activity for {time_since_activity:.0f}s', "error")
+            return True
+            
+        return False
+    
+    def perform_recovery(self):
+        """smart recovery with detailed logging and webhook notifications"""
+        if not self.app.main_loop_active:
+            return
+            
+        current_time = time.time()
+        
+        # Prevent spam recovery (reduced from 15 to 10 seconds for faster response)
+        if current_time - self.app.last_recovery_time < 10:
+            return
+            
+        self.app.recovery_count += 1
+        self.app.last_recovery_time = current_time
+        
+        # Create detailed recovery report
+        recovery_info = {
+            "recovery_number": self.app.recovery_count,
+            "stuck_state": self.app.current_state,
+            "stuck_duration": current_time - self.app.state_start_time,
+            "state_details": self.app.state_details.copy(),
+            "recent_stuck_actions": self.app.stuck_actions[-3:] if len(self.app.stuck_actions) > 0 else [],
+            "timestamp": current_time
+        }
+        
+        self.app.log(f'🔄 Smart Recovery #{self.app.recovery_count} - State: {self.app.current_state} - Restarting...', "error")
+        
+        # Dev mode detailed recovery logging
+        if self.app.dev_mode or self.app.verbose_logging:
+            self.app.log(f'🔍 DEV: Recovery details: {recovery_info}', "verbose")
+        
+        # Send webhook notification about recovery
+        self.app.webhook_manager.send_recovery(recovery_info)
+        
+        # Force release mouse if stuck clicking
+        if self.app.is_clicking:
+            try:
+                win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+                self.app.is_clicking = False
+                self.app.log('🔧 Released stuck mouse click', "verbose")
+            except Exception as e:
+                self.app.log(f'⚠️ Error releasing mouse: {e}', "error")
+        
+        # Reset all timers and state
+        self.app.last_activity_time = current_time
+        self.app.last_fish_time = current_time
+        self.app.set_recovery_state("idle", {"action": "recovery_reset"})
+        self.app.stuck_actions.clear()  # Clear stuck actions after recovery
+        
+        # Stop current loop
+        self.app.main_loop_active = False
+        
+        # Wait a moment for cleanup
+        threading.Event().wait(2.0)  # Increased wait time for better cleanup
+        
+        # Restart the loop with better error handling
+        try:
+            if hasattr(self.app, 'main_loop_thread') and self.app.main_loop_thread and self.app.main_loop_thread.is_alive():
+                self.app.main_loop_thread.join(timeout=5.0)  # Increased timeout
+        except Exception as e:
+            self.app.log(f'⚠️ Error joining thread: {e}', "error")
+        
+        # Restart with fresh state
+        self.app.main_loop_active = True
+        self.app.main_loop_thread = threading.Thread(target=self.run_main_loop, daemon=True)
+        self.app.main_loop_thread.start()
+        
+        self.app.log('✅ Smart Recovery complete - Enhanced monitoring active', "important")
+    
     def cast_line(self):
-        self.app.log('Casting line...', "verbose")
-        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
-        threading.Event().wait(1.0)
-        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
-        self.app.is_clicking = False
-        self.app.last_activity_time = time.time()
-        self.app.log('Line cast', "verbose")
+        """Delegate to app's cast_line method"""
+        self.app.cast_line()
     
     def check_and_purchase(self):
         if getattr(self.app, 'auto_purchase_var', None) and self.app.auto_purchase_var.get():
@@ -164,8 +290,8 @@ class FishingBot:
                     
                     detection_start_time = time.time()
                     while self.app.main_loop_active:
-                        if self.app.check_recovery_needed():
-                            self.app.perform_recovery()
+                        if self.check_recovery_needed():
+                            self.perform_recovery()
                             return
                         
                         current_time = time.time()

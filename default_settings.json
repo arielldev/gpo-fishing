@@ -1,37 +1,26 @@
 {
-  "auto_purchase_enabled": true,
+  "auto_purchase_enabled": false,
   "auto_purchase_amount": 10,
   "loops_per_purchase": 10,
   "point_coords": {
     "1": [
-      801,
-      938
+      758,
+      447
     ],
-    "2": [
-      975,
-      939
-    ],
-    "3": [
-      1093,
-      938
-    ],
-    "4": [
-      645,
-      197
-    ]
+    "2": null,
+    "3": null,
+    "4": null
   },
   "kp": 0.1,
   "kd": 0.5,
   "scan_timeout": 15.0,
   "wait_after_loss": 1.0,
   "smart_check_interval": 15.0,
+  "webhook_url": "https://ptb.discord.com/api/webhooks/1442286763136778441/-0pNm6BVGqmNc93sULoeV2dsW6JL90lPbUZ3d83Xb5cwbsQxLUI57TiKIaxVO-7n68Hi",
+  "webhook_enabled": true,
+  "webhook_interval": 10,
   "auto_update_enabled": false,
+  "dark_theme": true,
   "current_theme": "christmas",
-  "hotkeys": {
-    "toggle_loop": "f1",
-    "toggle_overlay": "f2",
-    "exit": "f3",
-    "toggle_tray": "f4"
-  },
-  "last_saved": "2025-11-24T00:40:47.317390"
+  "last_saved": "2025-11-24T01:35:09.166179"
 }

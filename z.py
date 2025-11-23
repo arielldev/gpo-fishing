@@ -231,8 +231,10 @@ class HotkeyGUI:
         if TRAY_AVAILABLE:
             self.setup_system_tray()
         
-        # Start auto-update loop if enabled
-        self.root.after(5000, self.start_auto_update_loop)  # Start after 5 seconds
+        # Check for updates immediately on startup if enabled, then start regular loop
+        if self.auto_update_enabled:
+            self.root.after(2000, self.startup_update_check)  # Check after 2 seconds for startup
+        self.root.after(5000, self.start_auto_update_loop)  # Start regular loop after 5 seconds
     
     def create_scrollable_frame(self):
         """Create a modern scrollable frame using tkinter Canvas and Scrollbar"""
@@ -1992,6 +1994,43 @@ Sequence (per user spec):
         
         # Clear the pending update
         self.pending_update = None
+
+    def startup_update_check(self):
+        """Check for updates immediately on startup (bypasses interval check)"""
+        if not self.auto_update_enabled or self.main_loop_active:
+            return
+            
+        # Run immediate update check in background thread
+        import threading
+        threading.Thread(target=self.immediate_update_check, daemon=True).start()
+
+    def immediate_update_check(self):
+        """Perform update check without interval restrictions"""
+        try:
+            import requests
+            import time
+            
+            # Update last check time
+            self.last_update_check = time.time()
+            
+            # Get latest commit info from GitHub API
+            response = requests.get(self.repo_url, timeout=10)
+            if response.status_code == 200:
+                commit_data = response.json()
+                latest_commit = commit_data['sha'][:7]  # Short commit hash
+                commit_message = commit_data['commit']['message'].split('\n')[0]  # First line only
+                commit_date = commit_data['commit']['committer']['date']
+                
+                # Check if we have a newer commit (simple check)
+                if self.should_update(commit_date):
+                    self.root.after(0, lambda: self.prompt_update(latest_commit, commit_message))
+                else:
+                    self.root.after(0, lambda: self.status_msg.config(text='✅ Up to date!', foreground='green'))
+            else:
+                self.root.after(0, lambda: self.status_msg.config(text='❌ Update check failed', foreground='red'))
+                
+        except Exception as e:
+            self.root.after(0, lambda: self.status_msg.config(text=f'Update check error: {str(e)[:30]}...', foreground='red'))
 
     def download_update(self):
         """Download and apply update automatically while preserving user settings"""

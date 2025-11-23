@@ -1,4 +1,4 @@
 @echo off
 REM Start Python script without console window and exit CMD
-start "" pythonw z.py
+start "" pythonw src/main.py
 exit

@@ -20,7 +20,7 @@ echo Starting GPO Autofish...
 echo ========================================
 echo.
 
-python z.py
+python src/main.py
 
 echo.
 echo ========================================

@@ -3,20 +3,35 @@
   "auto_purchase_amount": 10,
   "loops_per_purchase": 10,
   "point_coords": {
-    "1": null,
-    "2": null,
-    "3": null,
-    "4": null
+    "1": [
+      801,
+      938
+    ],
+    "2": [
+      975,
+      939
+    ],
+    "3": [
+      1093,
+      938
+    ],
+    "4": [
+      645,
+      197
+    ]
   },
   "kp": 0.1,
   "kd": 0.5,
   "scan_timeout": 15.0,
   "wait_after_loss": 1.0,
   "smart_check_interval": 15.0,
-  "webhook_url": "",
-  "webhook_enabled": false,
-  "webhook_interval": 10,
   "auto_update_enabled": false,
-  "dark_theme": true,
-  "last_saved": "2025-11-23T20:00:48.471001"
+  "dark_theme": false,
+  "hotkeys": {
+    "toggle_loop": "f1",
+    "toggle_overlay": "f2",
+    "exit": "f3",
+    "toggle_tray": "f4"
+  },
+  "last_saved": "2025-11-23T23:02:59.104362"
 }

@@ -27,10 +27,11 @@ The original closed-source macro is sketchy and often flagged by antivirus softw
 - Draggable detection overlay
 - Global hotkey support (F1/F2/F3)
 - Tunable parameters for optimal performance
-- **NEW:** One-click installation with `install.bat`
-- **NEW:** Silent mode for long grinding sessions
-- **NEW:** Smart logging system with performance optimization
-- **NEW:** Discord webhook integration for progress tracking
+- **Modern UI** with CustomTkinter - Clean, professional interface
+- **One-click installation** with `install.bat`
+- **Silent mode** for long grinding sessions
+- **Smart logging system** with performance optimization
+- **Discord webhook integration** for progress tracking
 
 ## 🚀 Performance Features
 
@@ -79,10 +80,7 @@ The original closed-source macro is sketchy and often flagged by antivirus softw
    ```
 4. **Run the application**
    ```bash
-   python z.py
-   ```
-   ```bash
-   python z.py
+   python src/main.py
    ```
 
 ## 🎮 Quick Start Guide
@@ -136,6 +134,37 @@ The original closed-source macro is sketchy and often flagged by antivirus softw
 - **Memory usage**: Silent mode automatically reduces memory footprint
 
 ---
+
+## 📁 Project Structure
+
+The codebase has been refactored into a clean, modular structure:
+
+```
+src/
+├── main.py          # Application entry point
+├── gui.py           # Main GUI and UI components
+├── fishing.py       # Fishing bot logic
+├── overlay.py       # Overlay window management
+├── webhook.py       # Discord webhook integration
+├── updater.py       # Auto-update system
+├── settings.py      # Settings management
+└── utils.py         # Utility classes
+```
+
+This modular structure makes the code:
+- ✅ Easier to understand and maintain
+- ✅ Better organized by functionality
+- ✅ Simpler to extend with new features
+- ✅ More testable and debuggable
+
+### Modern UI with CustomTkinter
+
+The application now uses **CustomTkinter** for a modern, professional look:
+- Clean, modern interface with smooth animations
+- Dark/Light theme support
+- Better visual hierarchy and readability
+- Professional-looking buttons and controls
+- Improved user experience
 
 ## 🤝 Contributing
 

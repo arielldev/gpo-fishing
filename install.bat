@@ -29,12 +29,12 @@ if errorlevel 1 (
 echo.
 echo [3/4] Installing required packages...
 echo Installing core dependencies...
-pip install -r requirements.txt --upgrade
+pip install -r requirements.txt
 if errorlevel 1 (
     echo ERROR: Failed to install packages
     echo.
     echo Trying alternative installation method...
-    pip install keyboard pynput pywin32 mss numpy pillow pystray requests --upgrade
+    pip install keyboard pynput pywin32 mss numpy pillow pystray requests
     if errorlevel 1 (
         echo ERROR: Installation failed completely
         echo.

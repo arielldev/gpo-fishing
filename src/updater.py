@@ -7,11 +7,12 @@ import tkinter.messagebox as msgbox
 class UpdateManager:
     def __init__(self, app):
         self.app = app
-        self.current_version = "1.4.4"
+        self.current_version = "1.5"  # Updated to match GUI version
         self.repo_url = "https://api.github.com/repos/arielldev/gpo-fishing/commits/main"
         self.last_check = 0
         self.check_interval = 300
         self.pending_update = None
+        self.last_commit_hash = None  # Track last known commit
     
     def check(self):
         if self.app.main_loop_active:
@@ -31,9 +32,8 @@ class UpdateManager:
                 commit_data = response.json()
                 latest_commit = commit_data['sha'][:7]
                 commit_message = commit_data['commit']['message'].split('\n')[0]
-                commit_date = commit_data['commit']['committer']['date']
                 
-                if self._should_update(commit_date):
+                if self._should_update(latest_commit):
                     self.app.root.after(0, lambda: self._prompt_update(latest_commit, commit_message))
                 else:
                     self.app.root.after(0, lambda: self.app.update_status('Up to date!', 'success', '✅'))
@@ -43,16 +43,52 @@ class UpdateManager:
         except Exception as e:
             self.app.root.after(0, lambda: self.app.update_status(f'Update check error: {str(e)[:30]}...', 'error', '❌'))
     
-    def _should_update(self, commit_date):
+    def _should_update(self, commit_hash):
+        """Check if we should update based on commit hash comparison"""
         try:
-            from datetime import datetime
+            # If we don't have a stored commit hash, get the current one
+            if self.last_commit_hash is None:
+                self.last_commit_hash = self._get_current_commit_hash()
             
-            current_file_time = os.path.getmtime(__file__)
-            commit_time = datetime.fromisoformat(commit_date.replace('Z', '+00:00')).timestamp()
-            
-            return commit_time > current_file_time
+            # Compare commit hashes - if different, update is available
+            return commit_hash != self.last_commit_hash
         except:
             return False
+    
+    def _get_current_commit_hash(self):
+        """Get the current commit hash from a local file or default"""
+        try:
+            # Try to read from a version file
+            version_file = os.path.join(os.path.dirname(__file__), '..', 'version.txt')
+            if os.path.exists(version_file):
+                with open(version_file, 'r') as f:
+                    return f.read().strip()
+        except:
+            pass
+        
+        # Default to a placeholder that will trigger update check
+        return "unknown"
+    
+    def _save_current_commit_hash(self):
+        """Save the current commit hash to prevent re-updating to the same version"""
+        try:
+            import requests
+            
+            # Get the latest commit hash
+            response = requests.get(self.repo_url, timeout=10)
+            if response.status_code == 200:
+                commit_data = response.json()
+                latest_commit = commit_data['sha'][:7]
+                
+                # Save to version file
+                version_file = os.path.join(os.path.dirname(__file__), '..', 'version.txt')
+                with open(version_file, 'w') as f:
+                    f.write(latest_commit)
+                
+                # Update our cached hash
+                self.last_commit_hash = latest_commit
+        except Exception as e:
+            print(f"Error saving commit hash: {e}")
     
     def _prompt_update(self, commit_hash, commit_message):
         if self.app.main_loop_active:
@@ -175,6 +211,9 @@ class UpdateManager:
                     if requirements_updated:
                         self.app.update_status('Updating dependencies...', 'info', '📦')
                         self._update_requirements()
+                    
+                    # Save the current commit hash to prevent re-updating
+                    self._save_current_commit_hash()
                     
                     self.app.update_status('Update installed! Restarting...', 'success', '✅')
                     self.app.root.after(2000, self._restart)

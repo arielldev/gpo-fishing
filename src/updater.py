@@ -52,18 +52,21 @@ class UpdateManager:
             
             # Compare commit hashes - if different, update is available
             return commit_hash != self.last_commit_hash
-        except:
+        except Exception as e:
             return False
     
     def _get_current_commit_hash(self):
         """Get the current commit hash from a local file or default"""
         try:
-            # Try to read from a version file
-            version_file = os.path.join(os.path.dirname(__file__), '..', 'version.txt')
+            # Try to read from a version file in the project root
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            version_file = os.path.join(current_dir, '..', 'version.txt')
+            version_file = os.path.abspath(version_file)  # Resolve the path
+            
             if os.path.exists(version_file):
                 with open(version_file, 'r') as f:
                     return f.read().strip()
-        except:
+        except Exception as e:
             pass
         
         # Default to a placeholder that will trigger update check
@@ -80,8 +83,11 @@ class UpdateManager:
                 commit_data = response.json()
                 latest_commit = commit_data['sha'][:7]
                 
-                # Save to version file
-                version_file = os.path.join(os.path.dirname(__file__), '..', 'version.txt')
+                # Save to version file in project root
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                version_file = os.path.join(current_dir, '..', 'version.txt')
+                version_file = os.path.abspath(version_file)
+                
                 with open(version_file, 'w') as f:
                     f.write(latest_commit)
                 
@@ -101,6 +107,8 @@ class UpdateManager:
         if msgbox.askyesno("Update Available", message):
             self.download()
         else:
+            # Save the current commit hash so we don't keep asking about the same update
+            self._save_current_commit_hash()
             self.app.update_status('Update skipped', 'warning', '⏭️')
     
     def show_pending(self):

@@ -7,36 +7,36 @@ import tkinter.messagebox as msgbox
 class UpdateManager:
     def __init__(self, app):
         self.app = app
-        self.current_version = "1.5"  # Updated to match GUI version
+        self.current_version = "1.5"
         self.repo_url = "https://api.github.com/repos/arielldev/gpo-fishing/commits/main"
         self.last_check = 0
-        self.check_interval = 300
+        self.check_interval = 300  # 5 minutes
         self.pending_update = None
-        self.last_commit_hash = None  # Track last known commit
-        self.dismissed_updates = self._load_dismissed_updates()  # Load persisted dismissed updates
-        self._cleanup_old_dismissed_updates()  # Clean up old dismissed updates
-    
-    def check(self):
+        
+    def check_for_updates(self):
+        """Check for updates from GitHub repository"""
+        # Don't check for updates while main loop is running
         if self.app.main_loop_active:
             return
-            
+        
         try:
             import requests
             
             current_time = time.time()
             if current_time - self.last_check < self.check_interval:
-                return
+                return  # Don't check too frequently
             
             self.last_check = current_time
             
             response = requests.get(self.repo_url, timeout=10)
             if response.status_code == 200:
                 commit_data = response.json()
-                latest_commit = commit_data['sha'][:7]
+                commit_hash = commit_data['sha'][:7]
                 commit_message = commit_data['commit']['message'].split('\n')[0]
+                commit_date = commit_data['commit']['committer']['date']
                 
-                if self._should_update(latest_commit):
-                    self.app.root.after(0, lambda: self._prompt_update(latest_commit, commit_message))
+                if self.should_update(commit_date):
+                    self.app.root.after(0, lambda: self.prompt_update(commit_hash, commit_message))
                 else:
                     self.app.root.after(0, lambda: self.app.update_status('Up to date!', 'success', '✅'))
             else:
@@ -44,138 +44,90 @@ class UpdateManager:
                 
         except Exception as e:
             self.app.root.after(0, lambda: self.app.update_status(f'Update check error: {str(e)[:30]}...', 'error', '❌'))
-    
-    def _should_update(self, commit_hash):
-        """Check if we should update based on commit hash comparison"""
+
+    def should_update(self, commit_date):
+        """Simple check if we should update based on commit date"""
         try:
-            # Get the current version from version.txt
-            current_commit = self._get_current_commit_hash()
+            from datetime import datetime
             
-            # Don't prompt if this update was already dismissed
-            if commit_hash in self.dismissed_updates:
-                return False
+            # Parse the commit date
+            commit_dt = datetime.fromisoformat(commit_date.replace('Z', '+00:00'))
             
-            # Compare commit hashes - if different, update is available
-            return commit_hash != current_commit
-        except Exception as e:
-            return False
-    
-    def _get_current_commit_hash(self):
-        """Get the current commit hash from version.txt (the actual current version)"""
-        try:
-            # Read from version.txt which contains the actual current version
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            version_file = os.path.join(current_dir, '..', 'version.txt')
-            version_file = os.path.abspath(version_file)
+            # Get current version date (you can update this when releasing)
+            # For now, assume current version is older if there's a newer commit
+            current_dt = datetime(2024, 11, 20)  # Update this date when releasing
             
-            if os.path.exists(version_file):
-                with open(version_file, 'r') as f:
-                    return f.read().strip()
+            return commit_dt > current_dt
         except Exception as e:
-            pass
-        
-        return "unknown"
-    
-    def _get_dismissed_file_path(self):
-        """Get path to the dismissed updates file in user's home directory"""
-        import os
-        home_dir = os.path.expanduser("~")
-        return os.path.join(home_dir, ".gpo_fishing_dismissed_updates.txt")
-    
-    def _load_dismissed_updates(self):
-        """Load dismissed updates from persistent file"""
-        try:
-            dismissed_file = self._get_dismissed_file_path()
-            if os.path.exists(dismissed_file):
-                with open(dismissed_file, 'r') as f:
-                    return set(line.strip() for line in f if line.strip())
-        except Exception as e:
-            pass
-        return set()
-    
-    def _save_dismissed_updates(self):
-        """Save dismissed updates to persistent file"""
-        try:
-            dismissed_file = self._get_dismissed_file_path()
-            with open(dismissed_file, 'w') as f:
-                for commit_hash in self.dismissed_updates:
-                    f.write(f"{commit_hash}\n")
-        except Exception as e:
-            print(f"Error saving dismissed updates: {e}")
-    
-    def _cleanup_old_dismissed_updates(self):
-        """Remove dismissed updates that are older than current version"""
-        try:
-            current_commit = self._get_current_commit_hash()
-            if current_commit != "unknown":
-                # Keep only dismissed updates that are newer than current version
-                # This prevents accumulating too many old dismissed updates
-                self.dismissed_updates = {commit for commit in self.dismissed_updates 
-                                        if commit != current_commit}
-                self._save_dismissed_updates()
-        except Exception as e:
-            pass
-    
-    def _save_current_commit_hash(self):
-        """Save the current commit hash to prevent re-updating to the same version"""
-        try:
-            import requests
-            
-            # Get the latest commit hash
-            response = requests.get(self.repo_url, timeout=10)
-            if response.status_code == 200:
-                commit_data = response.json()
-                latest_commit = commit_data['sha'][:7]
-                
-                # Save to version file in project root
-                current_dir = os.path.dirname(os.path.abspath(__file__))
-                version_file = os.path.join(current_dir, '..', 'version.txt')
-                version_file = os.path.abspath(version_file)
-                
-                with open(version_file, 'w') as f:
-                    f.write(latest_commit)
-                
-                # Update our cached hash
-                self.last_commit_hash = latest_commit
-        except Exception as e:
-            print(f"Error saving commit hash: {e}")
-    
-    def _prompt_update(self, commit_hash, commit_message):
+            print(f"Error checking update date: {e}")
+            return False  # Don't update if we can't determine
+
+    def prompt_update(self, commit_hash, commit_message):
+        """Prompt user about available update"""
+        # Don't show update dialog while main loop is running
         if self.app.main_loop_active:
+            # Store the update info to show later
             self.pending_update = {'commit_hash': commit_hash, 'commit_message': commit_message}
             self.app.update_status('Update available - will prompt when fishing stops', 'info', '🔄')
             return
         
-        message = f"New update available!\n\nLatest commit: {commit_hash}\nChanges: {commit_message}\n\nWould you like to download the update?"
+        message = f"New update available!\\n\\nLatest commit: {commit_hash}\\nChanges: {commit_message}\\n\\nWould you like to download the update?"
         
         if msgbox.askyesno("Update Available", message):
-            self.download()
+            self.download_update()
         else:
-            # Mark this update as dismissed so we don't ask again
-            self.dismissed_updates.add(commit_hash)
-            self._save_dismissed_updates()
             self.app.update_status('Update skipped', 'warning', '⏭️')
-    
-    def show_pending(self):
+
+    def show_pending_update(self):
+        """Show the pending update dialog that was delayed during fishing"""
         if not self.pending_update:
             return
             
         commit_hash = self.pending_update['commit_hash']
         commit_message = self.pending_update['commit_message']
         
-        message = f"Update available (found while fishing)!\n\nLatest commit: {commit_hash}\nChanges: {commit_message}\n\nWould you like to download the update?"
+        message = f"Update available (found while fishing)!\\n\\nLatest commit: {commit_hash}\\nChanges: {commit_message}\\n\\nWould you like to download the update?"
         
         if msgbox.askyesno("Update Available", message):
-            self.download()
+            self.download_update()
         else:
-            # Mark this update as dismissed so we don't ask again
-            self.dismissed_updates.add(commit_hash)
-            self._save_dismissed_updates()
             self.app.update_status('Update skipped', 'warning', '⏭️')
         
         self.pending_update = None
-    
-    def download(self):
+
+    def startup_update_check(self):
+        """Check for updates immediately on startup (bypasses interval check)"""
+        if not hasattr(self.app, 'auto_update_enabled') or not self.app.auto_update_enabled or self.app.main_loop_active:
+            return
+            
+        # Reset the last check time to force immediate check
+        self.last_check = 0
+        threading.Thread(target=self.immediate_update_check, daemon=True).start()
+
+    def immediate_update_check(self):
+        """Perform update check without interval restrictions"""
+        try:
+            import requests
+            
+            response = requests.get(self.repo_url, timeout=10)
+            if response.status_code == 200:
+                commit_data = response.json()
+                commit_hash = commit_data['sha'][:7]
+                commit_message = commit_data['commit']['message'].split('\n')[0]
+                commit_date = commit_data['commit']['committer']['date']
+                
+                if self.should_update(commit_date):
+                    self.app.root.after(0, lambda: self.prompt_update(commit_hash, commit_message))
+                else:
+                    self.app.root.after(0, lambda: self.app.update_status('Up to date!', 'success', '✅'))
+            else:
+                self.app.root.after(0, lambda: self.app.update_status('Update check failed', 'error', '❌'))
+                
+        except Exception as e:
+            self.app.root.after(0, lambda: self.app.update_status(f'Update check error: {str(e)[:30]}...', 'error', '❌'))
+
+    def download_update(self):
+        """Download and apply update automatically while preserving user settings"""
         try:
             import requests
             import zipfile
@@ -185,19 +137,24 @@ class UpdateManager:
             
             self.app.update_status('Downloading update...', 'info', '⬇️')
             
+            # Download the latest version
             zip_url = "https://github.com/arielldev/gpo-fishing/archive/refs/heads/main.zip"
             response = requests.get(zip_url, timeout=60)
             
             if response.status_code == 200:
+                # Create temporary directory for extraction
                 with tempfile.TemporaryDirectory() as temp_dir:
                     zip_path = os.path.join(temp_dir, "update.zip")
                     
+                    # Save the zip file
                     with open(zip_path, 'wb') as f:
                         f.write(response.content)
                     
+                    # Extract the zip file
                     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                         zip_ref.extractall(temp_dir)
                     
+                    # Find the extracted folder
                     extracted_folder = None
                     for item in os.listdir(temp_dir):
                         if os.path.isdir(os.path.join(temp_dir, item)) and 'gpo-fishing' in item:
@@ -208,13 +165,16 @@ class UpdateManager:
                         self.app.update_status('Update extraction failed', 'error', '❌')
                         return
                     
+                    # Files to preserve during update
                     preserve_files = ['default_settings.json', 'presets/', '.git/', '.gitignore']
                     
+                    # Create backup of current version
                     backup_timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
                     current_dir = os.path.dirname(os.path.abspath(__file__))
                     backup_dir = os.path.join(current_dir, f"backup_{backup_timestamp}")
                     os.makedirs(backup_dir, exist_ok=True)
                     
+                    # Backup current files
                     for item in os.listdir(current_dir):
                         if item.startswith('backup_'):
                             continue
@@ -242,10 +202,12 @@ class UpdateManager:
                             new_requirements = f.read()
                         requirements_updated = old_requirements != new_requirements
                     
+                    # Copy new files, preserving specified files
                     for item in os.listdir(extracted_folder):
                         src = os.path.join(extracted_folder, item)
                         dst = os.path.join(current_dir, item)
                         
+                        # Skip preserved files
                         if any(item.startswith(preserve.rstrip('/')) for preserve in preserve_files):
                             continue
                         
@@ -268,13 +230,6 @@ class UpdateManager:
                         self.app.update_status('Updating dependencies...', 'info', '📦')
                         self._update_requirements()
                     
-                    # Save the current commit hash to prevent re-updating
-                    self._save_current_commit_hash()
-                    
-                    # Clear dismissed updates since we just updated
-                    self.dismissed_updates.clear()
-                    self._save_dismissed_updates()
-                    
                     self.app.update_status('Update installed! Restarting...', 'success', '✅')
                     self.app.root.after(2000, self._restart)
                     
@@ -283,7 +238,7 @@ class UpdateManager:
                 
         except Exception as e:
             self.app.update_status(f'Update error: {str(e)[:30]}...', 'error', '❌')
-    
+
     def _update_requirements(self):
         """Update Python packages from requirements.txt"""
         try:
@@ -305,8 +260,9 @@ class UpdateManager:
             
         except Exception as e:
             print(f"Error updating requirements: {e}")
-    
+
     def _restart(self):
+        """Restart the application"""
         try:
             import subprocess
             
@@ -324,10 +280,12 @@ class UpdateManager:
         except Exception as e:
             print(f"Restart failed: {e}")
             sys.exit(1)
-    
-    def start_loop(self):
-        if self.app.auto_update_enabled and not self.app.main_loop_active:
-            threading.Thread(target=self.check, daemon=True).start()
+
+    def start_auto_update_loop(self):
+        """Start the auto-update checking loop"""
+        if hasattr(self.app, 'auto_update_enabled') and self.app.auto_update_enabled and not self.app.main_loop_active:
+            threading.Thread(target=self.check_for_updates, daemon=True).start()
         
-        if self.app.auto_update_enabled:
-            self.app.root.after(self.check_interval * 1000, self.start_loop)
+        # Schedule next check
+        if hasattr(self.app, 'auto_update_enabled') and self.app.auto_update_enabled:
+            self.app.root.after(self.check_interval * 1000, self.start_auto_update_loop)

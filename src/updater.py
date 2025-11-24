@@ -49,21 +49,30 @@ class UpdateManager:
         """Get the currently installed commit hash"""
         try:
             import json
-            # Try to read from installed_version.json (tracks what we actually have)
-            version_file = os.path.join(os.path.dirname(__file__), '..', 'installed_version.json')
+            # Try to read from installed_version.json in project root
+            version_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'installed_version.json')
             if os.path.exists(version_file):
                 with open(version_file, 'r') as f:
                     data = json.load(f)
                     return data.get('commit_hash')
-        except:
-            pass
+            else:
+                # File doesn't exist - automatically create it with current latest commit
+                print("🔄 First run detected - marking current version as installed...")
+                if self._auto_create_installed_version():
+                    # Try reading again after creation
+                    with open(version_file, 'r') as f:
+                        data = json.load(f)
+                        return data.get('commit_hash')
+        except Exception as e:
+            print(f"Error reading installed version: {e}")
         return None  # Unknown version
     
     def _save_installed_commit_data(self, commit_data):
         """Save the complete commit data when user actually updates"""
         try:
             import json
-            version_file = os.path.join(os.path.dirname(__file__), '..', 'installed_version.json')
+            # Save in the project root directory
+            version_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'installed_version.json')
             
             # Save complete commit info
             save_data = {
@@ -96,6 +105,22 @@ class UpdateManager:
                 return True
         except Exception as e:
             print(f"Error marking current version as installed: {e}")
+        return False
+
+    def _auto_create_installed_version(self):
+        """Automatically create installed_version.json on first run"""
+        try:
+            import requests
+            import json
+            
+            response = requests.get(self.repo_url, timeout=10)
+            if response.status_code == 200:
+                commit_data = response.json()
+                self._save_installed_commit_data(commit_data)
+                print("✅ Automatically marked current version as installed!")
+                return True
+        except Exception as e:
+            print(f"Error auto-creating installed version: {e}")
         return False
 
     def should_update(self, commit_hash):

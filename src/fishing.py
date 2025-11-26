@@ -363,8 +363,6 @@ class FishingBot:
             win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTUP, 0, 0, 0, 0)
         except Exception as e:
             pass
-        except Exception as e:
-            pass
     
     def run_main_loop(self):
         """Main fishing loop with aggressive monitoring"""

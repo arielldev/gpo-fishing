@@ -254,6 +254,10 @@ class FishingBot:
                     print('🛒 Auto-purchase complete')
                 except Exception as e:
                     print(f'❌ AUTO-PURCHASE ERROR: {e}')
+                    # Reset purchase counter to prevent getting stuck
+                    self.app.purchase_counter = 0
+                    # Reset state to idle
+                    self.app.set_recovery_state("idle", {"action": "purchase_error_recovery"})
     
     def perform_auto_purchase(self):
         """Perform auto-purchase sequence"""
@@ -265,10 +269,13 @@ class FishingBot:
                 pts[key] = tuple(pts[key])
         
         if not pts or not pts.get(1) or not pts.get(2) or not pts.get(3) or not pts.get(4):
+            print("❌ Auto-purchase failed: Missing point coordinates")
             return
         
         if not self.app.main_loop_active:
             return
+        
+        print(f"🛒 Starting auto-purchase sequence for {self.app.auto_purchase_amount} items...")
         
         amount = str(self.app.auto_purchase_amount)
         
@@ -290,13 +297,6 @@ class FishingBot:
         self.app.set_recovery_state("clicking", {"action": "click_point_2"})
         self._click_at(pts[2])
         time.sleep(self.app.purchase_click_delay)
-        
-        if not self.app.main_loop_active:
-            return
-        
-        # Double-click point 2 to ensure field is focused and selected
-        self._click_at(pts[2])
-        time.sleep(0.1)
         
         if not self.app.main_loop_active:
             return
@@ -338,7 +338,11 @@ class FishingBot:
         
         if hasattr(self.app, 'webhook_manager'):
             self.app.webhook_manager.send_purchase(amount)
-        print()
+        
+        print(f"✅ Auto-purchase sequence completed for {amount} items")
+        
+        # Reset state to idle after successful purchase
+        self.app.set_recovery_state("idle", {"action": "purchase_complete"})
     
     def _click_at(self, coords):
         """Click at coordinates"""
@@ -407,6 +411,9 @@ class FishingBot:
                         self.app.set_recovery_state("casting", {"action": "initial_cast"})
                         self.cast_line()
                         cast_time = time.time()
+                        
+                        # Small delay to ensure rod is properly cast
+                        time.sleep(0.5)
                         
                         # Enter detection phase
                         self.app.set_recovery_state("fishing", {"action": "blue_bar_detection"})

@@ -296,16 +296,27 @@ class FishingBot:
         
         self.app.set_recovery_state("clicking", {"action": "click_point_2"})
         self._click_at(pts[2])
-        time.sleep(self.app.purchase_click_delay)
+        # Longer delay to ensure input field is ready
+        time.sleep(self.app.purchase_click_delay + 0.3)
         
         if not self.app.main_loop_active:
             return
         
         self.app.set_recovery_state("typing", {"action": "typing_amount"})
-        # Type the amount
-        keyboard.write(amount)
+        # Clear field first, then type amount more slowly
+        keyboard.press_and_release('ctrl+a')
+        time.sleep(0.1)
+        keyboard.press_and_release('delete')
+        time.sleep(0.1)
+        
+        # Type each character with small delay for reliability
+        for char in amount:
+            keyboard.write(char)
+            time.sleep(0.05)
+        
         # Extra delay to ensure typing is complete
         time.sleep(self.app.purchase_after_type_delay + 0.5)
+        print(f"🛒 Typed amount: {amount}")
         
         if not self.app.main_loop_active:
             return

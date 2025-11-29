@@ -30,7 +30,8 @@ class ZoomController:
             "sequence_delay": 0.2  # Shorter delay between operations
         }
         self.last_zoom_time = 0
-        self.zoom_cooldown = 0.5  # Shorter cooldown for faster operations
+        self.zoom_cooldown = 2.0  # Longer cooldown to prevent conflicts
+        self.zoom_in_progress = False  # Lock to prevent overlapping zoom operations
         
         # Load settings from app if available
         if self.app:
@@ -83,9 +84,9 @@ class ZoomController:
         if not self.zoom_available:
             return False
             
-        # Check cooldown
+        # Check cooldown and lock (allow if part of zoom sequence)
         current_time = time.time()
-        if current_time - self.last_zoom_time < self.zoom_cooldown:
+        if not self.zoom_in_progress and current_time - self.last_zoom_time < self.zoom_cooldown:
             return False
             
         steps = steps or self.zoom_settings["zoom_out_steps"]
@@ -117,9 +118,9 @@ class ZoomController:
         if not self.zoom_available:
             return False
             
-        # Check cooldown
+        # Check cooldown and lock (allow if part of zoom sequence)
         current_time = time.time()
-        if current_time - self.last_zoom_time < self.zoom_cooldown:
+        if not self.zoom_in_progress and current_time - self.last_zoom_time < self.zoom_cooldown:
             return False
             
         steps = steps or self.zoom_settings["zoom_in_steps"]
@@ -146,10 +147,19 @@ class ZoomController:
         Returns:
             True if zoom sequence was performed
         """
-        if not self.zoom_available:
+        if not self.zoom_available or self.zoom_in_progress:
             return False
             
+        # Check cooldown
+        current_time = time.time()
+        if current_time - self.last_zoom_time < self.zoom_cooldown:
+            logging.info("Zoom operation skipped - cooldown active")
+            return False
+            
+        self.zoom_in_progress = True
         try:
+            logging.info("🔍 Starting zoom sequence...")
+            
             # First zoom out completely
             if self.zoom_out():
                 # Wait between operations
@@ -162,10 +172,14 @@ class ZoomController:
                 if zoom_success and self.app:
                     self._force_optimal_layout_coordinates()
                 
+                self.last_zoom_time = current_time
+                logging.info("✅ Zoom sequence completed")
                 return zoom_success
                 
         except Exception as e:
             logging.error(f"Optimal zoom sequence failed: {e}")
+        finally:
+            self.zoom_in_progress = False
             
         return False
     

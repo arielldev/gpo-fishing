@@ -1003,24 +1003,7 @@ class FishingBot:
         return drop_info
     
     def process_auto_zoom(self):
-        """Process automatic zoom control (legacy method for compatibility)"""
-        try:
-            # Only process if auto zoom is enabled
-            if not hasattr(self.app, 'auto_zoom_var') or not self.app.auto_zoom_var.get():
-                return
-            
-            # Check if zoom controller is available
-            if not hasattr(self.app, 'zoom_controller') or not self.app.zoom_controller.is_available():
-                return
-            
-            # Perform zoom sequence (zoom out then in)
-            if self.app.zoom_controller.can_zoom():
-                print("🔍 Performing auto zoom sequence...")
-                success = self.app.zoom_controller.zoom_to_optimal()
-                if success:
-                    print("✅ Auto zoom completed")
-                else:
-                    print("❌ Auto zoom failed")
-                    
-        except Exception as e:
-            print(f"❌ Auto zoom error: {e}")
+        """Process automatic zoom control (DISABLED - handled in perform_initial_setup)"""
+        # This method is disabled to prevent conflicts with the main zoom sequence
+        # Auto zoom is now handled in perform_initial_setup() only
+        return

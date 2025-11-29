@@ -286,10 +286,10 @@ class HotkeyGUI:
         self.register_hotkeys()
         
         # Set compact window size with modern scrolling
-        self.root.geometry('420x550')
+        self.root.geometry('420x650')  # Increased height from 550 to 650
         self.root.resizable(True, True)
         self.root.update_idletasks()
-        self.root.minsize(400, 450)
+        self.root.minsize(400, 500)  # Increased minimum height from 450 to 500
         
         # Setup system tray if available
         if TRAY_AVAILABLE:

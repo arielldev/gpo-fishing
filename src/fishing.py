@@ -793,23 +793,28 @@ class FishingBot:
         """Perform initial setup: zoom out, specific zoom in, auto buy if enabled"""
         print("🔧 Performing initial setup...")
         
-        # Step 1: Full zoom out
-        if hasattr(self.app, 'zoom_controller'):
-            if self.app.zoom_controller.is_available():
-                print("🔍 Step 1: Full zoom out...")
-                success_out = self.app.zoom_controller.reset_zoom()
-                print(f"   Zoom out result: {success_out}")
-                time.sleep(0.5)
-                
-                # Step 2: Specific zoom in
-                print("🔍 Step 2: Specific zoom in...")
-                success_in = self.app.zoom_controller.zoom_in()
-                print(f"   Zoom in result: {success_in}")
-                time.sleep(0.5)
+        # Step 1: Auto zoom (only if enabled)
+        auto_zoom_enabled = getattr(self.app, 'auto_zoom_var', None) and self.app.auto_zoom_var.get()
+        
+        if auto_zoom_enabled:
+            if hasattr(self.app, 'zoom_controller'):
+                if self.app.zoom_controller.is_available():
+                    print("🔍 Step 1: Full zoom out...")
+                    success_out = self.app.zoom_controller.reset_zoom()
+                    print(f"   Zoom out result: {success_out}")
+                    time.sleep(0.5)
+                    
+                    # Step 2: Specific zoom in
+                    print("🔍 Step 2: Specific zoom in...")
+                    success_in = self.app.zoom_controller.zoom_in()
+                    print(f"   Zoom in result: {success_in}")
+                    time.sleep(0.5)
+                else:
+                    print("🔍 Zoom controller not available (missing pywin32)")
             else:
-                print("🔍 Zoom controller not available (missing pywin32)")
+                print("🔍 Zoom controller not initialized")
         else:
-            print("🔍 Zoom controller not initialized")
+            print("🔍 Auto zoom disabled - skipping zoom sequence")
         
         # Step 3: Auto purchase if enabled
         if getattr(self.app, 'auto_purchase_var', None) and self.app.auto_purchase_var.get():

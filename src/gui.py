@@ -15,11 +15,7 @@ import json
 import os
 import time
 from datetime import datetime
-try:
-    import pystray
-    TRAY_AVAILABLE = True
-except ImportError:
-    TRAY_AVAILABLE = False
+# Tray functionality removed - F4 now minimizes to taskbar
 
 try:
     from PIL import Image, ImageDraw, ImageTk
@@ -158,7 +154,8 @@ class HotkeyGUI:
         self.wait_after_loss = 1.0
         self.dpi_scale = self.get_dpi_scale()
 
-        self.hotkeys = {'toggle_loop': 'f1', 'toggle_layout': 'f2', 'exit': 'f3', 'toggle_tray': 'f4'}
+        self.hotkeys = {'toggle_loop': 'f1', 'toggle_layout': 'f2', 'exit': 'f3', 'toggle_minimize': 'f4'}
+        print(f"🔧 Hotkeys initialized: {self.hotkeys}")
         self.purchase_counter = 0
         self.purchase_delay_after_key = 2.0
         self.purchase_click_delay = 1.0
@@ -228,7 +225,7 @@ class HotkeyGUI:
         # UI/UX improvements
         self.dark_theme = True  # Default to dark theme
         self.current_theme = "default"  # Default theme
-        self.tray_icon = None
+
         self.collapsible_sections = {}
         self.theme_window = None
         
@@ -291,9 +288,7 @@ class HotkeyGUI:
         self.root.update_idletasks()
         self.root.minsize(400, 500)  # Increased minimum height from 450 to 500
         
-        # Setup system tray if available
-        if TRAY_AVAILABLE:
-            self.setup_system_tray()
+
         
         # Initialize UpdateManager after GUI is ready
         try:
@@ -424,9 +419,7 @@ class HotkeyGUI:
         self.update_btn.pack(side=tk.LEFT, padx=(0, 8))
         ToolTip(self.update_btn, "Check for and install updates from GitHub")
         
-        if TRAY_AVAILABLE:
-            ttk.Button(right_controls, text='📌 Tray', command=self.minimize_to_tray,
-                      style='TButton').pack(side=tk.LEFT)
+
         
         current_row += 1
         
@@ -449,6 +442,10 @@ class HotkeyGUI:
         self.runtime_label = ttk.Label(status_frame, text='⏱️ Runtime: 00:00:00', style='Counter.TLabel')
         self.runtime_label.grid(row=1, column=0, columnspan=3, padx=10, pady=8)
         
+        current_row += 1
+        
+        # Fishing Location Section (new)
+        self.create_fishing_location_section(current_row)
         current_row += 1
         
         # Create modern collapsible sections - ordered by user priority
@@ -486,6 +483,44 @@ class HotkeyGUI:
                                    font=('Segoe UI', 9), foreground='#58a6ff')
         self.status_msg.grid(row=current_row, column=0, pady=(10, 0))
 
+    def create_fishing_location_section(self, start_row):
+        """Create the fishing location section (non-collapsible like settings)"""
+        # Create a frame similar to settings sections
+        theme_colors = self.theme_manager.themes[self.current_theme]["colors"]
+        
+        # Main section frame
+        fishing_frame = tk.LabelFrame(self.main_frame, text="🎣 Fishing Location", 
+                                     bg=theme_colors["bg"], fg=theme_colors["accent"],
+                                     font=('Segoe UI', 11, 'bold'), padx=20, pady=15)
+        fishing_frame.grid(row=start_row, column=0, sticky='ew', pady=(0, 20), padx=10)
+        
+        # Initialize fishing location if not set
+        if not hasattr(self, 'fishing_location'):
+            self.fishing_location = None
+            
+        # Fishing location button
+        location_label = tk.Label(fishing_frame, text="Cast Location:", 
+                                 bg=theme_colors["bg"], fg=theme_colors["fg"])
+        location_label.grid(row=0, column=0, sticky='w', pady=5)
+        
+        # Button text based on whether location is set
+        button_text = f"🎯 Location: {self.fishing_location}" if self.fishing_location else "🎯 Set Fishing Location"
+        
+        self.fishing_location_button = tk.Button(fishing_frame, text=button_text,
+                                               bg=theme_colors["button_bg"], fg=theme_colors["fg"],
+                                               command=lambda: self.capture_mouse_click('fishing_location'),
+                                               width=25, relief='flat')
+        self.fishing_location_button.grid(row=0, column=1, sticky='w', padx=(10, 0), pady=5)
+        
+        # Info text
+        info_label = tk.Label(fishing_frame, 
+                             text="Click to set where you want to cast your fishing rod", 
+                             bg=theme_colors["bg"], fg=theme_colors["fg"],
+                             font=('Segoe UI', 8))
+        info_label.grid(row=1, column=0, columnspan=2, sticky='w', pady=(5, 0))
+        
+        fishing_frame.columnconfigure(1, weight=1)
+
     def update_status(self, message, status_type='info', icon='ℹ️'):
         """Update the status message with color coding"""
         try:
@@ -507,12 +542,14 @@ class HotkeyGUI:
         try:
             # Handle different point types
             if isinstance(idx, int):
-                # Original auto-purchase points (1-4)
+                # Original auto-purchase points (1-3)
                 self.status_msg.config(text=f'Click anywhere to set Point {idx}...', foreground='blue')
             elif idx == 'fruit_point':
                 self.status_msg.config(text='Click anywhere to set Fruit Point...', foreground='blue')
             elif idx == 'bait_point':
                 self.status_msg.config(text='Click anywhere to set Bait Point...', foreground='blue')
+            elif idx == 'fishing_location':
+                self.status_msg.config(text='Click anywhere to set Fishing Location...', foreground='blue')
 
             def _on_click(x, y, button, pressed):
                 if pressed:
@@ -544,6 +581,15 @@ class HotkeyGUI:
                             # Capture variables properly in lambda
                             self.root.after(0, lambda coords=(x, y): self.bait_point_button.config(text=f'Bait Point: {coords}'))
                             self.root.after(0, lambda coords=(x, y): self.status_msg.config(text=f'Bait Point set: {coords}', foreground='green'))
+                        except Exception:
+                            pass
+                    elif idx == 'fishing_location':
+                        # Fishing location point
+                        self.fishing_location = (x, y)
+                        try:
+                            # Capture variables properly in lambda
+                            self.root.after(0, lambda coords=(x, y): self.fishing_location_button.config(text=f'🎯 Location: {coords}'))
+                            self.root.after(0, lambda coords=(x, y): self.status_msg.config(text=f'Fishing Location set: {coords}', foreground='green'))
                         except Exception:
                             pass
                     
@@ -762,7 +808,7 @@ Sequence (per user spec):
         self.loop_rebind_btn.config(state='disabled')
         self.layout_rebind_btn.config(state='disabled')  # Fixed: was overlay_rebind_btn
         self.exit_rebind_btn.config(state='disabled')
-        self.tray_rebind_btn.config(state='disabled')
+        self.minimize_rebind_btn.config(state='disabled')
         listener = pynput_keyboard.Listener(on_press=self.on_key_press)
         listener.start()
 
@@ -786,14 +832,14 @@ Sequence (per user spec):
                     self.layout_key_label.config(text=key_str.upper())
                 elif self.recording_hotkey == 'exit':
                     self.exit_key_label.config(text=key_str.upper())
-                elif self.recording_hotkey == 'toggle_tray':
-                    self.tray_key_label.config(text=key_str.upper())
+                elif self.recording_hotkey == 'toggle_minimize':
+                    self.minimize_key_label.config(text=key_str.upper())
                 
                 self.recording_hotkey = None
                 self.loop_rebind_btn.config(state='normal')
                 self.layout_rebind_btn.config(state='normal')
                 self.exit_rebind_btn.config(state='normal')
-                self.tray_rebind_btn.config(state='normal')
+                self.minimize_rebind_btn.config(state='normal')
                 self.status_msg.config(text=f'Hotkey set to {key_str.upper()}', foreground='green')
                 self.register_hotkeys()
                 return False  # Stop the listener
@@ -803,7 +849,7 @@ Sequence (per user spec):
                 self.loop_rebind_btn.config(state='normal')
                 self.layout_rebind_btn.config(state='normal')
                 self.exit_rebind_btn.config(state='normal')
-                self.tray_rebind_btn.config(state='normal')
+                self.minimize_rebind_btn.config(state='normal')
                 return False
         return False
 
@@ -814,9 +860,10 @@ Sequence (per user spec):
             keyboard.add_hotkey(self.hotkeys['toggle_loop'], self.toggle_main_loop)
             keyboard.add_hotkey(self.hotkeys['toggle_layout'], self.toggle_layout)
             keyboard.add_hotkey(self.hotkeys['exit'], self.exit_app)
-            keyboard.add_hotkey(self.hotkeys['toggle_tray'], self.toggle_tray_hotkey)
+            keyboard.add_hotkey(self.hotkeys['toggle_minimize'], self.toggle_minimize_hotkey)
+            print(f"✅ Hotkeys registered: {self.hotkeys}")
         except Exception as e:
-            print(f'Error registering hotkeys: {e}')
+            print(f'❌ Error registering hotkeys: {e}')
     
     def toggle_layout(self):
         """Toggle dual overlay mode via F2 hotkey"""
@@ -866,37 +913,45 @@ Sequence (per user spec):
         
         # Layout status removed - using overlay on/off only
     
-    def toggle_tray_hotkey(self):
-        """Toggle between tray and normal window via F4 hotkey"""
-        if TRAY_AVAILABLE:
-            if self.root.state() == 'withdrawn':
-                self.restore_from_tray()
-            else:
-                self.minimize_to_tray()
+    def toggle_minimize_hotkey(self):
+        """Toggle between minimized and normal window via F4 hotkey"""
+        print(f"🔧 F4 pressed - window state: {self.root.state()}")
+        if self.root.state() == 'iconic':
+            print("🔧 Restoring from taskbar")
+            self.root.deiconify()
+            self.root.lift()
         else:
-            print("System tray not available")
+            print("🔧 Minimizing to taskbar")
+            self.root.iconify()
     
 
 
 
     def toggle_main_loop(self):
         """Toggle between Start/Pause/Resume with smart detection"""
+        print(f"🔧 Toggle called - main_loop_active: {self.main_loop_active}, is_paused: {self.is_paused}")
+        
         if not self.main_loop_active and not self.is_paused:
             # Starting fresh
+            print("🔧 Calling start_fishing() - fresh start")
             self.start_fishing()
         elif self.main_loop_active and not self.is_paused:
             # Currently running - pause it
+            print("🔧 Calling pause_fishing() - pausing active loop")
             self.pause_fishing()
         elif not self.main_loop_active and self.is_paused:
             # Currently paused - resume it
+            print("🔧 Calling resume_fishing() - resuming paused loop")
             self.resume_fishing()
+        else:
+            print(f"🔧 Unexpected state - main_loop_active: {self.main_loop_active}, is_paused: {self.is_paused}")
     
     def start_fishing(self):
         """Start fishing from scratch"""
         # Check auto-purchase points if enabled
         if getattr(self, 'auto_purchase_var', None) and self.auto_purchase_var.get():
             pts = getattr(self, 'point_coords', {})
-            missing = [i for i in [1, 2, 3, 4] if not pts.get(i)]
+            missing = [i for i in [1, 2, 3] if not pts.get(i)]
             if missing:
                 messagebox.showwarning('Auto Purchase: Points missing', f'Please set Point(s) {missing} before starting Auto Purchase.')
                 return
@@ -911,8 +966,8 @@ Sequence (per user spec):
         # Update UI
         self.loop_status.config(text='● Main Loop: ACTIVE', style='StatusOn.TLabel')
         
-        # Start the loop
-        self.main_loop_thread = threading.Thread(target=self.main_loop, daemon=True)
+        # Start the loop directly (no smart detection needed for fresh start)
+        self.main_loop_thread = threading.Thread(target=lambda: self.fishing_bot.run_main_loop(skip_initial_setup=False), daemon=True)
         self.main_loop_thread.start()
         
         # Start runtime timer
@@ -992,12 +1047,12 @@ Sequence (per user spec):
         
         if blue_found:
             self.log('🎯 Blue fishing bar detected - resuming from current state', "important")
-            # Jump directly into the main loop detection
-            self.fishing_bot.run_main_loop()
+            # Jump directly into the main loop detection (skip initial setup)
+            self.fishing_bot.run_main_loop(skip_initial_setup=True)
         else:
             self.log('🎣 No fishing bar detected - starting fresh', "important")
             # Start from scratch with auto-purchase check and casting
-            self.fishing_bot.run_main_loop()
+            self.fishing_bot.run_main_loop(skip_initial_setup=False)
 
     def increment_fish_counter(self):
         """Increment fish counter and update display"""
@@ -1114,12 +1169,7 @@ Sequence (per user spec):
         # Auto-save settings before exit
         self.auto_save_settings()
 
-        # Stop system tray if running
-        if self.tray_icon:
-            try:
-                self.tray_icon.stop()
-            except Exception:
-                pass
+
 
         # Destroy dual overlays if they exist
         if hasattr(self, 'overlay_manager_bar') and self.overlay_manager_bar.window:
@@ -1165,7 +1215,7 @@ Sequence (per user spec):
         auto_check.grid(row=row, column=1, pady=5, sticky='w')
         help_btn = ttk.Button(frame, text='?', width=3)
         help_btn.grid(row=row, column=2, padx=(10, 0), pady=5)
-        ToolTip(help_btn, "Automatically buy bait after catching fish. Requires setting Points 1-4.")
+        ToolTip(help_btn, "Automatically buy bait after catching fish. Requires setting Points 1-3.")
         # Auto-save when auto-purchase is toggled
         self.auto_purchase_var.trace_add('write', lambda *args: self.auto_save_settings())
         row += 1
@@ -1202,9 +1252,9 @@ Sequence (per user spec):
         self.point_buttons = {}
         # Initialize point_coords only if not already set (preserve loaded values)
         if not hasattr(self, 'point_coords'):
-            self.point_coords = {1: None, 2: None, 3: None, 4: None}
+            self.point_coords = {1: None, 2: None, 3: None}
         
-        for i in range(1, 5):
+        for i in range(1, 4):
             ttk.Label(frame, text=f'Point {i}:').grid(row=row, column=0, sticky='e', pady=5, padx=(0, 10))
             self.point_buttons[i] = ttk.Button(frame, text=f'Point {i}', command=lambda idx=i: self.capture_mouse_click(idx))
             self.point_buttons[i].grid(row=row, column=1, pady=5, sticky='w')
@@ -1214,8 +1264,7 @@ Sequence (per user spec):
             tooltips = {
                 1: "Click to set: yes/buy button (same area)",
                 2: "Click to set: Input amount area (also ... area)", 
-                3: "Click to set: Close button",
-                4: "Click to set: Where you want to throw the rod at. (location on the screen where the water is)"
+                3: "Click to set: Close button"
             }
             ToolTip(help_btn, tooltips[i])
             row += 1
@@ -1333,14 +1382,14 @@ Sequence (per user spec):
         ToolTip(help_btn, "Close the application completely")
         row += 1
         
-        ttk.Label(frame, text='Toggle Tray:').grid(row=row, column=0, sticky='e', pady=5, padx=(0, 10))
-        self.tray_key_label = ttk.Label(frame, text=self.hotkeys['toggle_tray'].upper(), relief=tk.RIDGE, padding=5, width=10)
-        self.tray_key_label.grid(row=row, column=1, pady=5)
-        self.tray_rebind_btn = ttk.Button(frame, text='Rebind', command=lambda: self.start_rebind('toggle_tray'))
-        self.tray_rebind_btn.grid(row=row, column=2, padx=(10, 0), pady=5)
+        ttk.Label(frame, text='Toggle Minimize:').grid(row=row, column=0, sticky='e', pady=5, padx=(0, 10))
+        self.minimize_key_label = ttk.Label(frame, text=self.hotkeys['toggle_minimize'].upper(), relief=tk.RIDGE, padding=5, width=10)
+        self.minimize_key_label.grid(row=row, column=1, pady=5)
+        self.minimize_rebind_btn = ttk.Button(frame, text='Rebind', command=lambda: self.start_rebind('toggle_minimize'))
+        self.minimize_rebind_btn.grid(row=row, column=2, padx=(10, 0), pady=5)
         help_btn = ttk.Button(frame, text='?', width=3)
         help_btn.grid(row=row, column=3, padx=(10, 0), pady=5)
-        ToolTip(help_btn, "Toggle between system tray and normal window")
+        ToolTip(help_btn, "Toggle between minimized and normal window")
 
     def create_webhook_section(self, start_row):
         """Create the Discord webhook collapsible section"""
@@ -2238,6 +2287,7 @@ Sequence (per user spec):
             'loops_per_purchase': getattr(self.loops_var, 'get', lambda: getattr(self, 'loops_per_purchase', 1))(),
             'point_coords': getattr(self, 'point_coords', {}),
             'fruit_coords': getattr(self, 'fruit_coords', {}),
+            'fishing_location': getattr(self, 'fishing_location', None),
             'fruit_storage_enabled': getattr(self, 'fruit_storage_enabled', False),
             'fruit_storage_key': getattr(self, 'fruit_storage_key', '3'),
             'rod_key': getattr(self, 'rod_key', '1'),
@@ -2575,10 +2625,13 @@ Sequence (per user spec):
                 # Also refresh from current GUI values
                 self.update_zoom_controller_settings()
             
+            # Load fishing location
+            self.fishing_location = preset_data.get('fishing_location', None)
+            
             # Update UI elements
             if hasattr(self, 'point_buttons'):
                 self.update_point_buttons()
-            if hasattr(self, 'fruit_point_button') or hasattr(self, 'bait_point_button'):
+            if hasattr(self, 'fruit_point_button') or hasattr(self, 'bait_point_button') or hasattr(self, 'fishing_location_button'):
                 self.update_fruit_storage_buttons()
             if hasattr(self, 'auto_update_btn'):
                 self.update_auto_update_button()
@@ -2601,6 +2654,11 @@ Sequence (per user spec):
             if hasattr(self, 'bait_point_button') and 'bait_point' in self.fruit_coords:
                 coords = self.fruit_coords['bait_point']
                 self.bait_point_button.config(text=f'Bait Point: {coords}')
+        
+        # Update fishing location button
+        if hasattr(self, 'fishing_location_button') and hasattr(self, 'fishing_location') and self.fishing_location:
+            coords = self.fishing_location
+            self.fishing_location_button.config(text=f'🎯 Location: {coords}')
 
     def update_hotkey_labels(self):
         """Update hotkey label texts"""
@@ -2608,48 +2666,13 @@ Sequence (per user spec):
             self.loop_key_label.config(text=self.hotkeys['toggle_loop'].upper())
 
             self.exit_key_label.config(text=self.hotkeys['exit'].upper())
-            self.tray_key_label.config(text=self.hotkeys['toggle_tray'].upper())
+            self.minimize_key_label.config(text=self.hotkeys['toggle_minimize'].upper())
         except AttributeError:
             pass  # Labels not created yet
 
 
 
-    def setup_system_tray(self):
-        """Setup system tray functionality"""
-        try:
-            if PIL_AVAILABLE:
-                # Create a simple icon
-                image = Image.new('RGB', (64, 64), color='blue')
-                draw = ImageDraw.Draw(image)
-                draw.text((10, 20), "GPO", fill='white')
-            
-            menu = pystray.Menu(
-                pystray.MenuItem("Show", self.show_from_tray),
-                pystray.MenuItem("Toggle Loop", self.toggle_main_loop),
 
-                pystray.MenuItem("Exit", self.exit_app)
-            )
-            
-            self.tray_icon = pystray.Icon("GPO Autofish", image, menu=menu)
-        except Exception as e:
-            print(f"Error setting up system tray: {e}")
-
-    def minimize_to_tray(self):
-        """Minimize the application to system tray"""
-        if self.tray_icon:
-            self.root.withdraw()
-            threading.Thread(target=self.tray_icon.run, daemon=True).start()
-
-    def show_from_tray(self):
-        """Show the application from system tray"""
-        self.root.deiconify()
-        self.root.lift()
-        if self.tray_icon:
-            self.tray_icon.stop()
-    
-    def restore_from_tray(self):
-        """Alias for show_from_tray for consistency"""
-        self.show_from_tray()
 
 def main():
     root = tk.Tk()

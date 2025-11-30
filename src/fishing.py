@@ -321,21 +321,23 @@ class FishingBot:
             print(f"❌ Fruit storage workflow failed: {e}")
     
     def move_to_fishing_position(self):
-        """Move mouse to optimal fishing position (center-top of screen) and right-click"""
+        """Move mouse to fishing position (custom or default center-top)"""
         try:
             import win32api
             import win32gui
             import time
             
-            # Get screen dimensions
-            screen_width = win32api.GetSystemMetrics(0)  # SM_CXSCREEN
-            screen_height = win32api.GetSystemMetrics(1)  # SM_CYSCREEN
-            
-            # Calculate center-top position (center horizontally, about 1/3 from top)
-            fishing_x = screen_width // 2
-            fishing_y = screen_height // 3
-            
-            print(f"🎯 Moving mouse to fishing position: ({fishing_x}, {fishing_y})")
+            # Use custom fishing location if set, otherwise use default
+            if hasattr(self.app, 'fishing_location') and self.app.fishing_location:
+                fishing_x, fishing_y = self.app.fishing_location
+                print(f"🎯 Moving mouse to custom fishing position: ({fishing_x}, {fishing_y})")
+            else:
+                # Fallback to default center-top position
+                screen_width = win32api.GetSystemMetrics(0)  # SM_CXSCREEN
+                screen_height = win32api.GetSystemMetrics(1)  # SM_CYSCREEN
+                fishing_x = screen_width // 2
+                fishing_y = screen_height // 3
+                print(f"🎯 Moving mouse to default fishing position: ({fishing_x}, {fishing_y})")
             
             # Move mouse to fishing position
             self.app._click_at((fishing_x, fishing_y))
@@ -373,12 +375,12 @@ class FishingBot:
         pts = self.app.point_coords
         
         # Convert points to tuples if they're lists (from JSON)
-        for key in [1, 2, 3, 4]:
+        for key in [1, 2, 3]:
             if key in pts and pts[key] and isinstance(pts[key], list):
                 pts[key] = tuple(pts[key])
         
-        if not pts or not pts.get(1) or not pts.get(2) or not pts.get(3) or not pts.get(4):
-            print("❌ Auto-purchase failed: Missing point coordinates")
+        if not pts or not pts.get(1) or not pts.get(2) or not pts.get(3):
+            print("❌ Auto-purchase failed: Missing point coordinates (need points 1-3)")
             return
         
         if not self.app.main_loop_active:
@@ -452,8 +454,20 @@ class FishingBot:
         if not self.app.main_loop_active:
             return
         
-        self.app.set_recovery_state("clicking", {"action": "right_click_point_4"})
-        self._right_click_at(pts[4])
+        self.app.set_recovery_state("clicking", {"action": "right_click_fishing_location"})
+        # Use custom fishing location or default center-top
+        if hasattr(self.app, 'fishing_location') and self.app.fishing_location:
+            fishing_coords = self.app.fishing_location
+            print(f"🎯 Right-clicking at custom fishing location: {fishing_coords}")
+        else:
+            # Fallback to default center-top position
+            import win32api
+            screen_width = win32api.GetSystemMetrics(0)
+            screen_height = win32api.GetSystemMetrics(1)
+            fishing_coords = (screen_width // 2, screen_height // 3)
+            print(f"🎯 Right-clicking at default fishing location: {fishing_coords}")
+        
+        self._right_click_at(fishing_coords)
         time.sleep(self.app.purchase_click_delay)
         
         if hasattr(self.app, 'webhook_manager'):
@@ -588,7 +602,7 @@ class FishingBot:
             'confidence': best_section['confidence']
         }
     
-    def run_main_loop(self):
+    def run_main_loop(self, skip_initial_setup=False):
         """Main fishing loop with enhanced smart detection and control"""
         print('🎣 Main loop started with enhanced smart detection')
         target_color = (85, 170, 255)
@@ -610,8 +624,11 @@ class FishingBot:
         
         try:
             with mss.mss() as sct:
-                # Initial setup sequence
-                self.perform_initial_setup()
+                # Initial setup sequence (skip if resuming)
+                if not skip_initial_setup:
+                    self.perform_initial_setup()
+                else:
+                    print("🔧 Skipping initial setup - resuming from current state")
                 
                 # Main fishing loop
                 while self.app.main_loop_active and not self.force_stop_flag:

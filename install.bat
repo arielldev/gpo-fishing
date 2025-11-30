@@ -41,6 +41,7 @@ python -m pip install numpy --no-warn-script-location
 python -m pip install pillow --no-warn-script-location
 python -m pip install requests --no-warn-script-location
 python -m pip install pywin32 --no-warn-script-location
+python -m pip install pystray --no-warn-script-location
 
 echo Installing lightweight OCR packages...
 echo Trying PaddleOCR (lightweight alternative)...
@@ -61,20 +62,17 @@ if errorlevel 1 (
 )
 
 echo Installing optional UI packages...
-python -m pip install pystray --no-warn-script-location
-if errorlevel 1 (
-    echo WARNING: pystray installation failed - system tray will be disabled
-)
+echo ✓ pystray already installed with core packages
 
 echo Verifying core installation...
-python -c "import keyboard, pynput, mss, numpy, PIL, requests, win32api; print('✓ All core packages installed')" 2>nul
+python -c "import keyboard, pynput, mss, numpy, PIL, requests, win32api, pystray; print('✓ All core packages installed')" 2>nul
 if errorlevel 1 (
     echo ERROR: Core package installation failed
     echo.
     echo Trying with --user flag...
-    python -m pip install --user keyboard pynput mss numpy pillow requests pywin32 pytesseract opencv-python
+    python -m pip install --user keyboard pynput mss numpy pillow requests pywin32 pystray pytesseract opencv-python
     
-    python -c "import keyboard, pynput, mss, numpy, PIL, requests, win32api; print('✓ Core packages installed with --user')" 2>nul
+    python -c "import keyboard, pynput, mss, numpy, PIL, requests, win32api, pystray; print('✓ Core packages installed with --user')" 2>nul
     if errorlevel 1 (
         echo ERROR: Installation failed completely
         echo.
@@ -100,9 +98,10 @@ python -c "import numpy; print('✓ numpy')" 2>nul || echo ✗ numpy MISSING
 python -c "import PIL; print('✓ pillow')" 2>nul || echo ✗ pillow MISSING
 python -c "import requests; print('✓ requests')" 2>nul || echo ✗ requests MISSING
 python -c "import win32api; print('✓ pywin32')" 2>nul || echo ✗ pywin32 MISSING
+python -c "import pystray; print('✓ pystray')" 2>nul || echo ✗ pystray MISSING
 
 echo Checking optional modules...
-python -c "import pystray; print('✓ pystray (system tray support)')" 2>nul || echo ✗ pystray (system tray disabled)
+echo ✓ pystray already verified above
 python -c "import paddleocr; print('✓ PaddleOCR (lightweight text recognition)')" 2>nul || python -c "import easyocr; print('✓ EasyOCR (text recognition)')" 2>nul || echo ✗ OCR (using fallback detection)
 python -c "import cv2; print('✓ opencv-python (image processing)')" 2>nul || echo ✗ opencv-python (image processing disabled)
 
@@ -111,7 +110,7 @@ echo Testing basic functionality...
 python -c "
 import sys
 try:
-    import keyboard, pynput, mss, numpy, PIL, requests, win32api
+    import keyboard, pynput, mss, numpy, PIL, requests, win32api, pystray
     print('✓ All essential modules working')
     sys.exit(0)
 except ImportError as e:

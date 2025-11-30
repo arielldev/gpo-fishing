@@ -53,6 +53,7 @@ class SettingsManager:
             # Point coordinates
             'point_coords': getattr(self.app, 'point_coords', {}),
             'fruit_coords': getattr(self.app, 'fruit_coords', {}),
+            'fishing_location': getattr(self.app, 'fishing_location', None),
             
             # Fruit storage settings
             'fruit_storage_enabled': fruit_storage_enabled,
@@ -122,6 +123,9 @@ class SettingsManager:
                     
             # Fruit coordinates
             self.app.fruit_coords = preset_data.get('fruit_coords', {})
+            
+            # Fishing location
+            self.app.fishing_location = preset_data.get('fishing_location', None)
             
             # Fruit storage settings
             self.app.fruit_storage_enabled = preset_data.get('fruit_storage_enabled', True)
@@ -225,6 +229,11 @@ class SettingsManager:
             if hasattr(self.app, 'bait_point_button') and 'bait_point' in self.app.fruit_coords:
                 coords = self.app.fruit_coords['bait_point']
                 self.app.bait_point_button.config(text=f'Bait Point: {coords}')
+                
+            # Update fishing location button
+            if hasattr(self.app, 'fishing_location_button') and self.app.fishing_location:
+                coords = self.app.fishing_location
+                self.app.fishing_location_button.config(text=f'🎯 Location: {coords}')
             
             # Create auto_purchase_var for compatibility
             if hasattr(self.app, 'auto_purchase_toggle_btn') and not hasattr(self.app, 'auto_purchase_var'):

@@ -1,23 +1,19 @@
 {
   "auto_purchase_enabled": false,
-  "auto_purchase_amount": 10,
-  "loops_per_purchase": 10,
+  "auto_purchase_amount": 11,
+  "loops_per_purchase": 9,
   "point_coords": {
     "1": [
-      807,
-      940
+      801,
+      939
     ],
     "2": [
-      954,
-      943
+      957,
+      941
     ],
     "3": [
-      1092,
-      937
-    ],
-    "4": [
-      747,
-      350
+      1111,
+      940
     ]
   },
   "fruit_coords": {
@@ -30,6 +26,10 @@
       845
     ]
   },
+  "fishing_location": [
+    709,
+    184
+  ],
   "fruit_storage_enabled": false,
   "fruit_storage_key": "2",
   "rod_key": "1",
@@ -38,8 +38,8 @@
   "scan_timeout": 14.0,
   "wait_after_loss": 1.0,
   "smart_check_interval": 15.0,
-  "webhook_url": "https://discord.com/api/webhooks/1444314622457810995/0WUXr1j4BfR9WJgPX1PDJbIbNgMoUXxh_WxGAGaZeBwdq0h3rsdRUKtSxbBzRt6rPn43",
-  "webhook_enabled": true,
+  "webhook_url": "",
+  "webhook_enabled": false,
   "webhook_interval": 10,
   "dark_theme": true,
   "current_theme": "dark",
@@ -93,5 +93,5 @@
     "sequence_delay": 0.5,
     "zoom_cooldown": 2.0
   },
-  "last_saved": "2025-11-30T04:13:29.374098"
+  "last_saved": "2025-11-30T04:51:26.988135"
 }

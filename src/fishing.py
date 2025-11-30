@@ -278,20 +278,29 @@ class FishingBot:
                 print("❌ Fruit point coordinates not configured - skipping fruit storage")
                 return
             
-            # Step 2.5: Click store button and WAIT for storage to complete
-            print(f"📦 Step 2.5: Clicking store and waiting for fruit storage...")
-            # The store action happens here - this is where we need the long wait
-            time.sleep(0.8)  # CRITICAL: Wait for fruit to actually store
+            # Step 2.5: Try to store fruit and wait
+            print(f"📦 Step 2.5: Attempting fruit storage...")
+            time.sleep(0.8)  # Wait for storage attempt
             
-            # Step 2.6: Press backspace to drop fruit if storage fails
-            print(f"⬇️ Step 2.6: Pressing backspace to drop fruit")
+            # Step 2.6: Drop fruit with backspace
+            print(f"⬇️ Step 2.6: Dropping fruit with backspace...")
             keyboard.press_and_release('backspace')
-            time.sleep(0.1)  # Brief delay
+            time.sleep(0.6)  # Longer wait for drop animation
             
-            # Step 3: Press the configured rod key (instant)
-            print(f"🎣 Step 3: Pressing rod key '{rod_key}'")
+            # Step 3: Conditional rod selection
+            # When backspace drops fruit, game auto-returns to rod
+            # When fruit stores successfully, we stay in storage menu
+            # Solution: Wait longer and only press rod key once
+            print(f"🎣 Step 3: Returning to rod...")
+            
+            # Longer wait to let the game settle into final state
+            time.sleep(0.4)
+            
+            # Single rod key press - should work for both scenarios:
+            # - If in storage menu: switches to rod
+            # - If already on rod: stays on rod (most games don't cycle on same key)
             keyboard.press_and_release(rod_key)
-            time.sleep(0.2)  # Brief delay for rod selection
+            time.sleep(0.2)
             
             # Step 4: Click at the configured bait point (instant)
             if hasattr(self.app, 'fruit_coords') and 'bait_point' in self.app.fruit_coords:

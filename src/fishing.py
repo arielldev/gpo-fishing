@@ -1161,17 +1161,10 @@ class FishingBot:
                                 drop_info['has_fruit'] = True
                                 print(f"🍎 Devil fruit detected (keyword match count: {keyword_matches})")
                         
-                        # Check for LEGENDARY devil fruit drops only
+                        # Check for devil fruit drops
                         if 'devil fruit' in drop_text_lower:
-                            drop_info['has_fruit'] = True  # Devil fruits are fruits too
-                            # Check if it's legendary by looking for pity counters
-                            is_legendary = self.check_legendary_pity(drop_text)
-                            drop_info['is_legendary'] = is_legendary
-                            
-                            if is_legendary:
-                                print(f"🍎 LEGENDARY DEVIL FRUIT DETECTED!")
-                            else:
-                                print(f"🍎 Devil fruit detected (not legendary)")
+                            drop_info['has_fruit'] = True
+                            print(f"🍎 Devil fruit detected!")
                         
                         # Display in drop overlay
                         if hasattr(self.app, 'overlay_manager_drop') and self.app.overlay_manager_drop.window:

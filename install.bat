@@ -19,27 +19,6 @@ if errorlevel 1 (
 for /f "tokens=2" %%i in ('python --version 2^>^&1') do set PYTHON_VERSION=%%i
 echo ✓ Python %PYTHON_VERSION% found
 
-REM Check if Python 3.14 and show warning
-echo %PYTHON_VERSION% | findstr /C:"3.14" >nul
-if not errorlevel 1 (
-    echo.
-    echo ❌ ERROR: Python 3.14 detected
-    echo.
-    echo Python 3.14 is not supported for GPO Autofish macro functionality.
-    echo The required packages (keyboard, pynput, mss) don't work properly with Python 3.14.
-    echo.
-    echo Please install Python 3.13 instead:
-    echo 1. Download Python 3.13 from https://python.org
-    echo 2. Uninstall Python 3.14 first
-    echo 3. Install Python 3.13 and check "Add Python to PATH"
-    echo 4. Run this installer again
-    echo.
-    echo If you need help, contact Ariel for assistance.
-    echo.
-    pause
-    exit /b 1
-)
-
 echo.
 echo [2/4] Upgrading pip to latest version...
 python -m pip install --upgrade pip >nul 2>&1
@@ -62,69 +41,45 @@ python -m pip install numpy --no-warn-script-location
 python -m pip install pillow --no-warn-script-location
 python -m pip install requests --no-warn-script-location
 python -m pip install pywin32 --no-warn-script-location
-python -m pip install pystray --no-warn-script-location
 
 echo Installing OCR packages for text recognition...
 echo.
-echo Installing EasyOCR (primary text recognition)...
-python -m pip install easyocr
-if errorlevel 1 (
-    echo EasyOCR installation failed, trying alternative methods...
-    echo.
-    echo Method 1: Installing with --user flag...
-    python -m pip install --user easyocr
-    if errorlevel 1 (
-        echo Method 2: Installing with --force-reinstall...
-        python -m pip install --force-reinstall easyocr
-        if errorlevel 1 (
-            echo Method 3: Installing dependencies separately...
-            python -m pip install torch torchvision
-            python -m pip install opencv-python
-            python -m pip install pillow
-            python -m pip install numpy
-            python -m pip install easyocr
-            if errorlevel 1 (
-                echo WARNING: EasyOCR installation failed completely
-                echo.
-                echo Manual installation required:
-                echo 1. Open Command Prompt as Administrator
-                echo 2. Run: pip install easyocr
-                echo 3. If that fails, try: pip install --user easyocr
-                echo.
-                echo The app will use fallback text detection without OCR
-            ) else (
-                echo ✓ EasyOCR installed via dependency method
-            )
-        ) else (
-            echo ✓ EasyOCR installed via force-reinstall
-        )
-    ) else (
-        echo ✓ EasyOCR installed via --user flag
-    )
-) else (
-    echo ✓ EasyOCR installed successfully
-)
-
-echo.
-echo Installing OpenCV for image processing...
+echo Installing OpenCV for image processing (required for OCR)...
 python -m pip install opencv-python --no-warn-script-location
 if errorlevel 1 (
     echo OpenCV installation failed, trying --user flag...
     python -m pip install --user opencv-python
+    if errorlevel 1 (
+        echo WARNING: OpenCV installation failed
+        echo The app will use basic text detection without advanced OCR
+    ) else (
+        echo ✓ OpenCV installed with --user flag
+    )
+) else (
+    echo ✓ OpenCV installed successfully
 )
 
-echo Installing optional UI packages...
-echo ✓ pystray already installed with core packages
+
+
+echo.
+echo Installing optional advanced OCR (TrOCR - may be large download)...
+python -m pip install transformers torch torchvision --index-url https://download.pytorch.org/whl/cpu --no-warn-script-location
+if errorlevel 1 (
+    echo Advanced OCR installation failed - using basic OCR only
+    echo This is normal and the app will work fine with basic text detection
+) else (
+    echo ✓ Advanced TrOCR installed successfully
+)
 
 echo Verifying core installation...
-python -c "import keyboard, pynput, mss, numpy, PIL, requests, win32api, pystray; print('✓ All core packages installed')" 2>nul
+python -c "import keyboard, pynput, mss, numpy, PIL, requests, win32api; print('✓ All core packages installed')" 2>nul
 if errorlevel 1 (
     echo ERROR: Core package installation failed
     echo.
     echo Trying with --user flag...
-    python -m pip install --user keyboard pynput mss numpy pillow requests pywin32 pystray pytesseract opencv-python
+    python -m pip install --user keyboard pynput mss numpy pillow requests pywin32 opencv-python
     
-    python -c "import keyboard, pynput, mss, numpy, PIL, requests, win32api, pystray; print('✓ Core packages installed with --user')" 2>nul
+    python -c "import keyboard, pynput, mss, numpy, PIL, requests, win32api; print('✓ Core packages installed with --user')" 2>nul
     if errorlevel 1 (
         echo ERROR: Installation failed completely
         echo.
@@ -150,30 +105,21 @@ python -c "import numpy; print('✓ numpy')" 2>nul || echo ✗ numpy MISSING
 python -c "import PIL; print('✓ pillow')" 2>nul || echo ✗ pillow MISSING
 python -c "import requests; print('✓ requests')" 2>nul || echo ✗ requests MISSING
 python -c "import win32api; print('✓ pywin32')" 2>nul || echo ✗ pywin32 MISSING
-python -c "import pystray; print('✓ pystray')" 2>nul || echo ✗ pystray MISSING
 
-echo Checking optional modules...
-python -c "import easyocr; print('✓ EasyOCR (text recognition available)')" 2>nul || echo ✗ EasyOCR (text recognition disabled - using fallback detection)
-python -c "import cv2; print('✓ opencv-python (image processing)')" 2>nul || echo ✗ opencv-python (image processing disabled)
+echo Checking OCR modules...
+python -c "import cv2; print('✓ opencv-python (image processing available)')" 2>nul || echo ✗ opencv-python (image processing disabled)
+python -c "import transformers; print('✓ TrOCR (advanced text recognition available)')" 2>nul || echo ✗ TrOCR (advanced OCR disabled - using basic OCR only)
 
 echo.
 echo Testing basic functionality...
-python -c "
-import sys
-try:
-    import keyboard, pynput, mss, numpy, PIL, requests, win32api, pystray
-    print('✓ All essential modules working')
-    sys.exit(0)
-except ImportError as e:
-    print(f'✗ Missing module: {e}')
-    sys.exit(1)
-" 2>nul
+python -c "import keyboard, pynput, mss, numpy, PIL, requests, win32api; print('✓ All essential modules working')" 2>nul
 if errorlevel 1 (
     echo.
     echo WARNING: Some essential modules are missing
     echo The program may not work correctly
     echo Try running the installer as administrator
 )
+
 
 echo.
 echo ========================================
@@ -184,7 +130,7 @@ echo To run GPO Autofish:
 echo   • Double-click "run.bat" (recommended)
 echo   • Or run "python src/main.py" in command prompt
 echo.
-echo ✅ Features available:
+echo Features available:
 echo   ✓ Auto-fishing with PD controller
 echo   ✓ Auto-purchase system
 echo   ✓ Discord webhook notifications
@@ -192,12 +138,11 @@ echo   ✓ System tray support
 echo   ✓ Auto-recovery system
 echo   ✓ Pause/Resume functionality
 echo   ✓ Dual layout system (F2 to toggle)
+echo   ✓ Text recognition for drops (OCR)
 echo   ✓ Auto zoom control
-
 echo.
 echo OCR Status:
-python -c "import easyocr; print('✓ EasyOCR ready - text recognition available!')" 2>nul || echo ⚠️  EasyOCR not available - using fallback detection (drops detected but text not readable)
-
+python -c "import cv2, numpy, PIL; print('✓ Basic OCR ready - text detection available!')" 2>nul && python -c "import transformers; print('✓ Advanced TrOCR ready - enhanced text recognition available!')" 2>nul || echo ⚠️  Basic OCR only (advanced TrOCR not available)
 echo.
 echo Press any key to exit...
 pause >nul

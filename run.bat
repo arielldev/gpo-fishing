@@ -53,6 +53,12 @@ if exist ".venv\Scripts\activate.bat" (
 )
 
 REM Use pythonw for no console window
-set PYTHONW_EXE=!PYTHON_EXE:python.exe=pythonw.exe!
+if "!PYTHON_EXE!"=="python" (
+    set PYTHONW_EXE=pythonw
+) else if "!PYTHON_EXE!"=="py -3" (
+    set PYTHONW_EXE=pyw -3
+) else (
+    set PYTHONW_EXE=!PYTHON_EXE:python.exe=pythonw.exe!
+)
 start "" "!PYTHONW_EXE!" src/main.py
 exit

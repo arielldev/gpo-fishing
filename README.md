@@ -97,7 +97,7 @@ The original closed-source macro is sketchy and often flagged by antivirus softw
    - ⚠️ **Do NOT use Python 3.14+** - it will cause installation failures
 2. **Clone or download this repository**
    ```bash
-   git clone https://github.com/yourusername/gpo-autofish.git
+   git clone https://github.com/arielldev/gpo-autofish.git
    cd gpo-autofish
    ```
 3. **Install packages**

@@ -1658,6 +1658,7 @@ Sequence (per user spec):
                                highlightthickness=1, highlightcolor=theme_colors["accent"],
                                highlightbackground=theme_colors["button_bg"])
         kp_spinbox.grid(row=1, column=1, sticky='e', padx=(10, 0), pady=2)
+        self.kp_var.trace_add('write', lambda *args: (setattr(self, 'kp', self.kp_var.get()), self.auto_save_settings()))
         
         # KD setting
         kd_label = tk.Label(timing_frame, text="Derivative Gain (KD):", 
@@ -1673,6 +1674,7 @@ Sequence (per user spec):
                                highlightthickness=1, highlightcolor=theme_colors["accent"],
                                highlightbackground=theme_colors["button_bg"])
         kd_spinbox.grid(row=2, column=1, sticky='e', padx=(10, 0), pady=2)
+        self.kd_var.trace_add('write', lambda *args: (setattr(self, 'kd', self.kd_var.get()), self.auto_save_settings()))
         
         # Timeout settings
         timeout_label = tk.Label(timing_frame, text="⏰ Timeout Settings", 
@@ -1694,6 +1696,7 @@ Sequence (per user spec):
                                  highlightthickness=1, highlightcolor=theme_colors["accent"],
                                  highlightbackground=theme_colors["button_bg"])
         scan_spinbox.grid(row=4, column=1, sticky='e', padx=(10, 0), pady=2)
+        self.scan_timeout_var.trace_add('write', lambda *args: (setattr(self, 'scan_timeout', self.scan_timeout_var.get()), self.auto_save_settings()))
         
         timing_frame.columnconfigure(1, weight=1)
 

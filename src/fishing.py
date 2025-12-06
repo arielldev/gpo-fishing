@@ -256,7 +256,7 @@ class FishingBot:
         self.app.cast_line()
     
     def store_fruit(self):
-        """Complete fruit storage and rod switching workflow"""
+        """Complete fruit storage and rod switching workflow with reliable delays"""
         fruit_storage_enabled = getattr(self.app, 'fruit_storage_enabled', False)
         print(f"🔍 Fruit storage enabled: {fruit_storage_enabled}")
         
@@ -272,61 +272,64 @@ class FishingBot:
             fruit_key = getattr(self.app, 'fruit_storage_key', '3')
             rod_key = getattr(self.app, 'rod_key', '1')
             
-            print(f"🍎 Starting fruit storage workflow...")
+            print(f"🍎 Starting fruit storage workflow with enhanced delays...")
             
-            # Step 1: Press the configured fruit storage key (instant)
+            # Step 1: Press the configured fruit storage key
             print(f"📦 Step 1: Pressing fruit storage key '{fruit_key}'")
             keyboard.press_and_release(fruit_key)
-            time.sleep(0.2)  # Brief delay for inventory to open
+            time.sleep(0.5)  # Increased delay for inventory to fully open
             
-            # Step 2: Click at the configured fruit point (instant)
+            # Step 2: Click at the configured fruit point
             if hasattr(self.app, 'fruit_coords') and 'fruit_point' in self.app.fruit_coords:
                 fruit_x, fruit_y = self.app.fruit_coords['fruit_point']
                 print(f"🎯 Step 2: Clicking fruit point at ({fruit_x}, {fruit_y})")
                 self.app._click_at((fruit_x, fruit_y))
-                time.sleep(0.1)  # Brief delay before storage action
+                time.sleep(0.3)  # Increased delay before storage action
             else:
                 print("❌ Fruit point coordinates not configured - skipping fruit storage")
                 return
             
             # Step 2.5: Try to store fruit and wait
             print(f"📦 Step 2.5: Attempting fruit storage...")
-            time.sleep(0.8)  # Wait for storage attempt
+            time.sleep(1.2)  # Increased wait for storage attempt to fully process
             
-            # Step 2.6: Drop fruit with backspace
+            # Step 2.6: Drop fruit with backspace (fallback)
             print(f"⬇️ Step 2.6: Dropping fruit with backspace...")
             keyboard.press_and_release('backspace')
-            time.sleep(0.6)  # Longer wait for drop animation
+            time.sleep(1.0)  # Increased wait for drop animation to complete
             
-            # Step 3: Conditional rod selection
-            # When backspace drops fruit, game auto-returns to rod
-            # When fruit stores successfully, we stay in storage menu
-            # Solution: Wait longer and only press rod key once
-            print(f"🎣 Step 3: Returning to rod...")
+            # Step 3: Ensure proper rod equipping with multiple attempts
+            print(f"🎣 Step 3: Ensuring rod is properly equipped...")
             
-            # Longer wait to let the game settle into final state
-            time.sleep(0.4)
+            # Wait longer for game to settle completely
+            time.sleep(0.8)
             
-            # Single rod key press - should work for both scenarios:
-            # - If in storage menu: switches to rod
-            # - If already on rod: stays on rod (most games don't cycle on same key)
+            # First rod key press
+            print(f"🎣 Step 3a: First rod key press '{rod_key}'")
             keyboard.press_and_release(rod_key)
-            time.sleep(0.2)
+            time.sleep(0.5)  # Wait for first rod selection
             
-            # Step 4: Click at the configured bait point (instant)
+            # Second rod key press to ensure rod is equipped (safety measure)
+            print(f"🎣 Step 3b: Second rod key press '{rod_key}' (ensuring equipped)")
+            keyboard.press_and_release(rod_key)
+            time.sleep(0.5)  # Wait for rod to be fully equipped
+            
+            # Step 4: Click at the configured bait point
             if hasattr(self.app, 'fruit_coords') and 'bait_point' in self.app.fruit_coords:
                 bait_x, bait_y = self.app.fruit_coords['bait_point']
                 print(f"🎯 Step 4: Clicking bait point at ({bait_x}, {bait_y})")
                 self.app._click_at((bait_x, bait_y))
-                time.sleep(0.1)  # Brief delay
+                time.sleep(0.3)  # Increased delay after bait selection
             else:
                 print("❌ Bait point coordinates not configured - skipping bait selection")
                 return
             
-            # Step 5: Move mouse to fishing position (center-top of screen)
+            # Step 5: Final wait and move to fishing position
+            print(f"🎯 Step 5: Final preparation for next cast...")
+            time.sleep(0.3)  # Final settling delay
             self.move_to_fishing_position()
             
-            print(f"✅ Fruit storage sequence completed: Key {fruit_key} → Fruit Point → Key {rod_key} → Bait Point → Fishing Position")
+            print(f"✅ Fruit storage sequence completed with enhanced timing: Key {fruit_key} → Fruit Point → Storage/Drop → Rod Key x2 → Bait Point → Fishing Position")
             
         except Exception as e:
             print(f"❌ Fruit storage workflow failed: {e}")

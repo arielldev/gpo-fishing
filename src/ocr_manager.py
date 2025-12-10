@@ -91,29 +91,44 @@ class OCRManager:
     
     def configure_performance_settings(self):
         """Configure OCR performance settings based on performance mode"""
+        # Get drop layout dimensions if available
+        drop_width = None
+        drop_height = None
+        if self.app and hasattr(self.app, 'layout_manager'):
+            drop_area = self.app.layout_manager.get_layout_area('drop')
+            if drop_area:
+                drop_width = drop_area['width']
+                drop_height = drop_area['height']
+        
+        # Use drop layout size if available, otherwise use None (no resizing)
+        if drop_width and drop_height:
+            max_size = (drop_width, drop_height)
+        else:
+            max_size = (999, 999)  # Effectively no limit if drop layout not set
+        
         if self.performance_mode == "fast":
             # Fastest mode - minimal processing, maximum performance
-            self.max_image_size = (300, 150)
+            self.max_image_size = max_size
             self.skip_preprocessing = True
             self.capture_cooldown = 3.0  # Longer cooldown
             self.cache_max_size = 15
-            print("🚀 OCR configured for FAST mode - maximum performance, minimal CPU usage")
+            print(f"🚀 OCR configured for FAST mode - max size: {max_size}")
             
         elif self.performance_mode == "balanced":
             # Balanced mode - moderate processing, good performance
-            self.max_image_size = (400, 200)
+            self.max_image_size = max_size
             self.skip_preprocessing = False
             self.capture_cooldown = 2.0
             self.cache_max_size = 10
-            print("⚖️ OCR configured for BALANCED mode - good performance with decent accuracy")
+            print(f"⚖️ OCR configured for BALANCED mode - max size: {max_size}")
             
         elif self.performance_mode == "quality":
             # Quality mode - better processing, slower performance
-            self.max_image_size = (600, 300)
+            self.max_image_size = max_size
             self.skip_preprocessing = False
             self.capture_cooldown = 1.5
             self.cache_max_size = 5
-            print("🎯 OCR configured for QUALITY mode - better accuracy, higher CPU usage")
+            print(f"🎯 OCR configured for QUALITY mode - max size: {max_size}")
         
         else:
             # Default to fast mode if unknown setting
@@ -145,17 +160,12 @@ class OCRManager:
             try:
                 if OCR_ENGINE == "easy":
                     print("🔧 Initializing EasyOCR with CPU optimization...")
-                    # Initialize EasyOCR with CPU-only mode and performance optimizations
+                    # Initialize EasyOCR with only compatible parameters
                     self.reader = easyocr.Reader(
                         ['en'], 
                         gpu=False,  # Force CPU usage
                         verbose=False,
-                        download_enabled=True,
-                        detector=True,
-                        recognizer=True,
-                        width_ths=0.7,  # Optimize text detection threshold
-                        height_ths=0.7,
-                        decoder='greedy'  # Use faster greedy decoder instead of beam search
+                        download_enabled=True
                     )
                     print("✅ EasyOCR ready with CPU optimization - text recognition available!")
                 elif OCR_ENGINE == "paddle":

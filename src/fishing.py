@@ -365,15 +365,17 @@ class FishingBot:
             keyboard.press_and_release(rod_key)
             time.sleep(0.8)  # Extended wait for rod to be fully equipped
             
-            # Step 14: Click at the configured bait point
-            if hasattr(self.app, 'fruit_coords') and 'bait_point' in self.app.fruit_coords:
+            # Step 14: Click at the configured bait point (only if auto-bait is enabled)
+            auto_bait_enabled = getattr(self.app, 'auto_bait_enabled', False)
+            if auto_bait_enabled and hasattr(self.app, 'fruit_coords') and 'bait_point' in self.app.fruit_coords:
                 bait_x, bait_y = self.app.fruit_coords['bait_point']
                 print(f"🎯 Step 14: Clicking bait point at ({bait_x}, {bait_y})")
                 self.app._click_at((bait_x, bait_y))
                 time.sleep(0.3)  # Increased delay after bait selection
+            elif not auto_bait_enabled:
+                print("ℹ️ Step 14: Auto-bait disabled - skipping bait selection")
             else:
                 print("❌ Bait point coordinates not configured - skipping bait selection")
-                return
             
             # Step 15: Final wait and move to fishing position
             print(f"🎯 Step 15: Final preparation for next cast...")
